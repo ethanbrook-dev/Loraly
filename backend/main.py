@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import os, json, tempfile, re
-from upload_ds_and_train_lora import upload_ds_and_train_lora
+from backend.upload_ds_and_train_lora import upload_ds_and_train_lora
 
 app = FastAPI()
 
@@ -39,7 +39,7 @@ async def generate_voice(request: Request):
         temp_file.flush()
         print(f"\n✅ Temp dataset file created at: {temp_file_path}")
 
-    # upload_ds_and_train_lora(lora_id, temp_file_path) # In this function on this file get HF_TOKEN, HF_USERNAME, HF_MODEL_ID from .env.local
+    upload_ds_and_train_lora(lora_id, temp_file_path)
 
     # Step 3: Cleanup temp file (we assume lora training is done)
     try:
