@@ -1,11 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
-import os, json, tempfile
-
-# Load environment variables
-load_dotenv('.env.local')
-hf_token = os.getenv("NEXT_PUBLIC_HF_TOKEN")
+import os, json, tempfile, re
+from upload_ds_and_train_lora import upload_ds_and_train_lora
 
 app = FastAPI()
 
@@ -35,10 +31,6 @@ async def generate_voice(request: Request):
 
     # Step 1: Convert to JSONL string
     jsonl_str = text_to_jsonl_string(text)
-    print("\n[DEBUG] First few lines of JSONL:")
-    print(jsonl_str[:300], "...\n")  # print first 300 chars of JSONL
-    if not jsonl_str:
-        return {"status": "error", "message": "No valid text provided for LoRA training."}
     
     # Step 2: Create a temporary dataset file
     with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".jsonl") as temp_file:
@@ -47,20 +39,7 @@ async def generate_voice(request: Request):
         temp_file.flush()
         print(f"\n✅ Temp dataset file created at: {temp_file_path}")
 
-    # 🧠🛠️📤📥🚀
-    """
-    ⏳ NEXT STEP: Upload this dataset manually to Hugging Face as a private dataset
-    👉 Go to: https://huggingface.co/datasets
-    👉 Click "New Dataset" (make it private)
-    👉 Upload this JSONL file: {temp_file_path}
-    
-    ✅ Once uploaded, go to RunPod Fine Tuning tab and:
-       - Paste in your HF model ID (e.g., mistralai/Mistral-7B-Instruct-v0.3)
-       - Paste your dataset repo ID (e.g., your-user/my-private-dataset)
-       - Trigger the fine-tuning run!
-    
-    ⚠️ After successful training, don’t forget to delete this temp file!
-    """
+    # upload_ds_and_train_lora(lora_id, temp_file_path) # In this function on this file get HF_TOKEN, HF_USERNAME, HF_MODEL_ID from .env.local
 
     # Step 3: Cleanup temp file (we assume lora training is done)
     try:
@@ -69,9 +48,9 @@ async def generate_voice(request: Request):
     except Exception as e:
         print(f"⚠️ Error deleting temp file: {e}")
     
-    #Remember to send email to user
-    print("\n✅ LoRA training request processed successfully!")
-    print("📧 Sending email to:", email)
+    # Remember to send email to user
+    # print("\n✅ LoRA training request processed successfully!")
+    # print("📧 Sending email to:", email)
     
     return {
         "status": "ready",
@@ -79,7 +58,8 @@ async def generate_voice(request: Request):
     }
 
 def text_to_jsonl_string(raw_text: str) -> str:
-    sentences = raw_text.split('.')
+    # This regex splits at . or ? or ! while keeping the punctuation
+    sentences = re.findall(r'[^.?!]+[.?!]', raw_text)
     sentences = [s.strip() for s in sentences if s.strip()]
-    lines = [json.dumps({"text": sentence + "."}, ensure_ascii=False) for sentence in sentences]
+    lines = [json.dumps({"text": sentence}, ensure_ascii=False) for sentence in sentences]
     return "\n".join(lines)
