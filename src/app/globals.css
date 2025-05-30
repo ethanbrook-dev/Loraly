@@ -1,0 +1,589 @@
+/* globals.css */
+
+/* --------------------------------------------- Reset & Base styles --------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
+    "Segoe UI Symbol";
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #fff;
+  color: #111827;
+  /* Dark Gray */
+}
+
+/* Container and wrapper */
+.aftervoice-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f9fafb;
+  padding: 1rem;
+}
+
+.aftervoice-wrapper {
+  max-width: 420px;
+  width: 100%;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+}
+
+/* Logo/Header */
+.aftervoice-logo {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.logo-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 1rem;
+}
+
+.aftervoice-title {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0;
+  color: #1f2937;
+  /* Gray-800 */
+}
+
+.aftervoice-subtitle {
+  font-size: 1rem;
+  color: #6b7280;
+  /* Gray-500 */
+  margin-top: 0.25rem;
+}
+
+/* Card */
+.aftervoice-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  padding: 1.5rem;
+}
+
+.card-body {
+  width: 100%;
+}
+
+/* Form */
+.aftervoice-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-weight: 600;
+  color: #374151;
+  /* Gray-700 */
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 1rem;
+  border: 1.5px solid #d1d5db;
+  /* Gray-300 */
+  border-radius: 8px;
+  transition: border-color 0.2s ease;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  /* Blue-600 */
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.3);
+}
+
+/* Error message */
+.error-message {
+  color: #dc2626;
+  /* Red-600 */
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+/* Submit button */
+.submit-button {
+  background-color: #2563eb;
+  /* Blue-600 */
+  color: white;
+  padding: 0.75rem;
+  border: none;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.submit-button:disabled {
+  background-color: #93c5fd;
+  /* Blue-300 */
+  cursor: not-allowed;
+}
+
+.submit-button:hover:not(:disabled) {
+  background-color: #1e40af;
+  /* Blue-800 */
+}
+
+/* Loading spinner styling */
+.loading-spinner {
+  margin-right: 0.5rem;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Form footer */
+.form-footer {
+  margin-top: 1.25rem;
+  font-size: 0.9rem;
+  color: #6b7280;
+  /* Gray-500 */
+  display: flex;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.toggle-link {
+  background: none;
+  border: none;
+  color: #2563eb;
+  cursor: pointer;
+  font-weight: 600;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.toggle-link:hover {
+  color: #1e40af;
+}
+
+/* --------------------------------------------- RoleSelect & Profile pic upload --------------------------------------------- */
+/* CHANGE COLOR SO IT WOULD LOOK MORE ON THEME 👇*/
+.back-btn {
+  color: #2563eb;
+  font-weight: 600;
+  background: #22c55e;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  margin: 2rem auto; /* center horizontally with margin */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.back-btn:hover {
+  color: #1e40af;
+  background: #16a34a;
+}
+/* CHANGE COLOR SO IT WOULD LOOK MORE ON THEME ☝️*/
+
+.recording-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.recording-modal {
+  background: white;
+  padding: 2rem;
+  border-radius: 1rem;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+  text-align: center;
+}
+
+.modal-actions {
+  margin-top: 1.5rem;
+}
+
+.dont-show {
+  display: block;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.proceed-button {
+  background-color: #4f46e5;
+  color: white;
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.proceed-button:hover {
+  background-color: #4338ca;
+}
+
+.profile-pic-upload {
+  width: 6rem;
+  height: 6rem;
+  border-radius: 9999px;
+  background-color: #d1d5db;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+  cursor: pointer;
+  color: white;
+  font-size: 2.5rem;
+  overflow: hidden;
+  position: relative;
+}
+
+.profile-pic-upload:hover {
+  opacity: 0.8;
+}
+
+.profile-pic-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.role-select-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem 1rem;
+  background: #f9fafb;
+  text-align: center;
+}
+
+.role-select-question {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1f2937;
+  /* Gray-800 */
+  margin-bottom: 2rem;
+}
+
+/* Buttons container */
+.role-select-buttons {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* Buttons */
+.role-button {
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  min-width: 220px;
+  transition: background-color 0.2s ease;
+  box-shadow: 0 4px 10px rgb(0 0 0 / 0.1);
+  color: white;
+  user-select: none;
+
+  /* Center stacked text */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+/* Inner text styles */
+.title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.subtitle {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #e5e7eb;
+  /* Tailwind gray-200 for softer contrast */
+}
+
+.creator-button {
+  background-color: #2563eb;
+  /* Blue-600 */
+}
+
+.creator-button:hover {
+  background-color: #1e40af;
+  /* Blue-800 */
+}
+
+.explorer-button {
+  background-color: #10b981;
+  /* Emerald-500 */
+}
+
+.explorer-button:hover {
+  background-color: #047857;
+  /* Emerald-700 */
+}
+
+/* Main wrapper for layout */
+.creator-dashboard {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #f9fafb;
+  position: relative;
+  padding: 1rem;
+}
+
+/* Top center user profile + welcome */
+.user-top-profile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.user-pic {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 9999px;
+  object-fit: cover;
+  aspect-ratio: 1/1;
+  border: 2px solid #2563eb;
+  background-color: #d1d5db;
+}
+
+/* Placeholder circle if no profile pic */
+.user-pic.placeholder {
+  background-color: #9ca3af;
+}
+
+/* Welcome text below profile pic */
+.welcome-text {
+  margin-top: 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #111827;
+  text-align: center;
+}
+
+/* Styling for displaying user's loras */
+.loras-scroll-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-height: 400px; /* adjust */
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.lora-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 2px solid #ddd;
+  border-radius: 12px;
+  padding: 1rem;
+  background: white;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+.lora-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.lora-name {
+  font-size: 1.2rem;
+  font-weight: 500;
+}
+
+.share-button {
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.share-button img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Voice section */
+.creator-voice-section {
+  flex-grow: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  text-align: center;
+  color: #6b7280;
+}
+
+/* Create Voice button at bottom */
+.create-voice-button {
+  background-color: #10b981; /* Green-500 */
+  color: white;
+  padding: 0.75rem 2rem;
+  border-radius: 10px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  border: none;
+  transition: background-color 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  width: 90%;
+  max-width: 400px;
+}
+
+.create-voice-button:hover {
+  background-color: #059669; /* Green-600 */
+}
+
+
+.creator-footer {
+  display: flex;
+  justify-content: center;
+  padding: 1rem;
+  background-color: white;
+  box-shadow: 0 -1px 4px rgba(0, 0, 0, 0.05);
+}
+
+.create-voice-container {
+  max-width: 32rem;
+  margin: 0 auto;
+  padding: 2.5rem 1rem;
+}
+
+.create-voice-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.voice-name-input-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;  /* vertical centering */
+  align-items: center;      /* horizontal centering */
+  height: 30vh;             /* reduced height for less gap */
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.voice-name-input {
+  width: 100%;
+  margin-top: 1rem;
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 0.375rem;
+}
+
+.voice-name-note {
+  font-size: 0.875rem;
+  color: #dc2626; /* red-600 */
+  margin-top: 0.25rem;
+}
+
+.voice-error-message {
+  color: #ef4444; /* red-500 */
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+.voice-save-button {
+  margin-top: 1.5rem;
+  background-color: #000;
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  transition: background-color 0.2s ease-in-out;
+}
+
+.voice-save-button:hover {
+  background-color: #1f2937; /* gray-800 */
+}
+
+.create-voice-preview {
+  text-align: center;
+}
+
+.voice-profile-image {
+  margin: 0 auto;
+  width: 8rem;
+  height: 8rem;
+  border-radius: 9999px;
+  object-fit: cover;
+}
+
+.creator-voice-section {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background-color: #fff;
+}
+
+/* ------------------------------------------------- RECORDING LORAS --------------------------------------------- */
+.record-more-button {
+  margin-top: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.85rem;
+  background-color: #f2f2f2;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.record-more-button:hover {
+  background-color: #e0e0e0;
+}

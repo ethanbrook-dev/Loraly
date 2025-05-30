@@ -1,0 +1,115 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { supabase } from '../../../supabase/client';
+
+export default function ProfilePicture_user() {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const fetchProfilePic = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('profile_pic_url')
+        .eq('id', user.id)
+        .single();
+
+      if (error || !data?.profile_pic_url) return;
+
+      const { data: signedUrlData } = await supabase
+        .storage
+        .from('avatars')
+        .createSignedUrl(data.profile_pic_url, 60);
+
+      if (signedUrlData?.signedUrl) {
+        setImageUrl(signedUrlData.signedUrl);
+      }
+    };
+
+    fetchProfilePic();
+  }, []);
+
+  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    setErrorMsg(null); // Clear previous errors
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (max 1MB = 1,048,576 bytes)
+    if (file.size > 1048576) {
+      setErrorMsg('File size exceeds 1MB. Please upload a smaller image.');
+      return;
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const filePath = `${user.id}/${Date.now()}-${file.name}`;
+
+    const { error: uploadError } = await supabase
+      .storage
+      .from('avatars')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error('Upload failed:', uploadError);
+      setErrorMsg('Upload failed. Please try again.');
+      return;
+    }
+
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ profile_pic_url: filePath })
+      .eq('id', user.id);
+
+    if (updateError) {
+      console.error('DB update failed:', updateError);
+      setErrorMsg('Failed to update profile picture info.');
+      return;
+    }
+
+    const { data: signedUrlData } = await supabase
+      .storage
+      .from('avatars')
+      .createSignedUrl(filePath, 60);
+
+    if (signedUrlData?.signedUrl) {
+      setImageUrl(signedUrlData.signedUrl);
+    }
+  };
+
+  return (
+    <>
+      <div
+        className="profile-pic-upload"
+        onClick={() => fileInputRef.current?.click()}
+        style={{ position: 'relative' }}
+      >
+        {imageUrl ? (
+          <img src={imageUrl} alt="Profile" className="profile-pic-image" />
+        ) : (
+          '+'
+        )}
+      </div>
+      <input
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        ref={fileInputRef}
+        onChange={handleUpload}
+      />
+      {errorMsg && (
+        <p style={{ color: 'red', marginTop: '0.5rem', fontWeight: '600' }}>
+          {errorMsg}
+        </p>
+      )}
+    </>
+  );
+}
