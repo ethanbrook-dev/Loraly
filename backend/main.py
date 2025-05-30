@@ -1,13 +1,11 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-import os, json
-from create_runpod_job import create_runpod_job
+import os, json, tempfile
 
 # Load environment variables
 load_dotenv('.env.local')
 hf_token = os.getenv("NEXT_PUBLIC_HF_TOKEN")
-runpod_api_key = os.getenv("RUNPOD_API_KEY")
 
 app = FastAPI()
 
@@ -29,35 +27,55 @@ async def generate_voice(request: Request):
     lora_id = data.get("loraId")
     text = data.get("rawText")
     email = data.get("userEmail")
-    
-    if not all([hf_token, runpod_api_key]):
-        return {"status": "error", "message": "API keys not set."}
 
-    print("Received LoRA training request:")
+    print("\n=== LoRA Training Request Received ===")
     print("LoRA ID:", lora_id)
     print("Email:", email)
+    print("Raw Text:\n", text[:300], "...\n")  # print first 300 chars
 
-    # Step 1: Convert to jsonl string
+    # Step 1: Convert to JSONL string
     jsonl_str = text_to_jsonl_string(text)
+    print("\n[DEBUG] First few lines of JSONL:")
+    print(jsonl_str[:300], "...\n")  # print first 300 chars of JSONL
+    if not jsonl_str:
+        return {"status": "error", "message": "No valid text provided for LoRA training."}
+    
+    # Step 2: Create a temporary dataset file
+    with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".jsonl") as temp_file:
+        temp_file_path = temp_file.name
+        temp_file.write(jsonl_str)
+        temp_file.flush()
+        print(f"\n✅ Temp dataset file created at: {temp_file_path}")
 
-    # Step 2: Generate YAML config
-    config_yaml_str = generate_yaml_config(lora_id)
+    # 🧠🛠️📤📥🚀
+    """
+    ⏳ NEXT STEP: Upload this dataset manually to Hugging Face as a private dataset
+    👉 Go to: https://huggingface.co/datasets
+    👉 Click "New Dataset" (make it private)
+    👉 Upload this JSONL file: {temp_file_path}
+    
+    ✅ Once uploaded, go to RunPod Fine Tuning tab and:
+       - Paste in your HF model ID (e.g., mistralai/Mistral-7B-Instruct-v0.3)
+       - Paste your dataset repo ID (e.g., your-user/my-private-dataset)
+       - Trigger the fine-tuning run!
+    
+    ⚠️ After successful training, don’t forget to delete this temp file!
+    """
 
-    # Step 3: Send job to RunPod
-    runpod_response = create_runpod_job(
-        runpod_api_key=runpod_api_key,
-        jsonl_str=jsonl_str,
-        config_yaml_str=config_yaml_str,
-        hf_token=hf_token,
-        lora_id=lora_id
-    )
-
-    print("RunPod response:", runpod_response)
-
+    # Step 3: Cleanup temp file (we assume lora training is done)
+    try:
+        os.remove(temp_file_path)
+        print(f"🧹 Temp file deleted: {temp_file_path}")
+    except Exception as e:
+        print(f"⚠️ Error deleting temp file: {e}")
+    
+    #Remember to send email to user
+    print("\n✅ LoRA training request processed successfully!")
+    print("📧 Sending email to:", email)
+    
     return {
-        "status": "submitted",
-        "message": "Training job submitted to RunPod.",
-        "runpod_response": runpod_response
+        "status": "ready",
+        "message": "Dataset prepared. Please upload to HF and start fine-tuning manually.",
     }
 
 def text_to_jsonl_string(raw_text: str) -> str:
@@ -65,43 +83,3 @@ def text_to_jsonl_string(raw_text: str) -> str:
     sentences = [s.strip() for s in sentences if s.strip()]
     lines = [json.dumps({"text": sentence + "."}, ensure_ascii=False) for sentence in sentences]
     return "\n".join(lines)
-
-def generate_yaml_config(lora_id: str) -> str:
-    return f"""base_model: mistralai/Mistral-7B-Instruct-v0.3
-model_type: AutoModelForCausalLM
-tokenizer_type: AutoTokenizer
-load_in_8bit: true
-
-gradient_checkpointing: true
-
-datasets:
-  - path: /workspace/data/neatjsonltextfile.jsonl
-    type: completion
-
-dataset_prepared_path: last_run_prepared
-
-val_set_size: 0.01
-output_dir: /workspace/lora_output
-sequence_len: 512
-pad_to_sequence_len: true
-adapter: lora
-
-lora_r: 8
-lora_alpha: 16
-lora_dropout: 0.05
-lora_target_modules: 
-  - q_proj
-  - v_proj
-  - k_proj
-  - o_proj
-  - gate_proj
-  - up_proj
-  - down_proj
-
-lr_scheduler: cosine
-learning_rate: 0.0003
-micro_batch_size: 2
-gradient_accumulation_steps: 4
-epochs: 3
-optimizer: adamw_bnb_8bit
-"""

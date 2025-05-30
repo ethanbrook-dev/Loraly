@@ -1,1 +1,1 @@
-export const MIN_WORDS_FOR_LORA_GEN = 25;
+export const MIN_WORDS_FOR_LORA_GEN = 50000;
