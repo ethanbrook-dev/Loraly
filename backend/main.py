@@ -24,11 +24,6 @@ async def generate_voice(request: Request):
     text = data.get("rawText")
     email = data.get("userEmail")
 
-    print("\n=== LoRA Training Request Received ===")
-    print("LoRA ID:", lora_id)
-    print("Email:", email)
-    print("Raw Text:\n", text[:300], "...\n")  # print first 300 chars
-
     # Step 1: Convert to JSONL string
     jsonl_str = text_to_jsonl_string(text)
     
@@ -37,14 +32,12 @@ async def generate_voice(request: Request):
         temp_file_path = temp_file.name
         temp_file.write(jsonl_str)
         temp_file.flush()
-        print(f"\n✅ Temp dataset file created at: {temp_file_path}")
 
     upload_ds_and_train_lora(lora_id, temp_file_path)
 
     # Step 3: Cleanup temp file (we assume lora training is done)
     try:
         os.remove(temp_file_path)
-        print(f"🧹 Temp file deleted: {temp_file_path}")
     except Exception as e:
         print(f"⚠️ Error deleting temp file: {e}")
     
