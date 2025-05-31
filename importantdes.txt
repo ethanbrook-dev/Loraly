@@ -41,6 +41,10 @@ create_repo("lora1-model", private=True)
 
 --------------------------------------------------------------------------
 
+After uploading the model to hugging face and confirming it exists under the models in my hf, I then closed my web terminal, went to run pod where it said web terminal is running or smth, stopped the web terminal, stopped the pod and then clicked 'terminate' button on the pod to delete it completely.
+
+--------------------------------------------------------------------------
+
 Not sure about:
 
 <delete_repo>
