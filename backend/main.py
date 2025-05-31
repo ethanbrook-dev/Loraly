@@ -41,6 +41,8 @@ async def generate_voice(request: Request):
     except Exception as e:
         print(f"⚠️ Error deleting temp file: {e}")
     
+    # Delete ds from hf
+    
     # Remember to send email to user
     # print("\n✅ LoRA training request processed successfully!")
     # print("📧 Sending email to:", email)
