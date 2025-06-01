@@ -150,10 +150,7 @@ export default function CreatorDashboard() {
         .filter(Boolean)
         .join(' ');
 
-      // ✅ Send to backend
-      const pythonBackendUrl = process.env.NEXT_PUBLIC_PYTHON_BACKEND_URL || 'http://localhost:8000'; //fallback
-
-      const res = await fetch(`${pythonBackendUrl}/generate-voice`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_BACKEND_URL}/api/generate-voice`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -166,7 +163,8 @@ export default function CreatorDashboard() {
       if (res.ok) {
         alert('TODO: SHOW MESSAGE (NICE UI INSTEAD OF ALERT)');
       } else {
-        alert(`Something went wrong. Please try again.`);
+        alert(`respose: ` + res + " and status: " + res.status);
+        console.error("Failed to generate voice:", res.statusText);
       }
 
     } catch (err) {

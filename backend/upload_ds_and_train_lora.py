@@ -12,16 +12,27 @@ def upload_ds_and_train_lora(lora_id: str, dataset_file_path: str) -> dict:
     dataset_repo_id = f"{os.getenv('HF_USERNAME')}/{lora_id}-dataset"
     api = HfApi(token=os.getenv('HF_TOKEN'))
 
-    if upload_ds_to_hf(api, dataset_repo_id, dataset_file_path):
-        lora_trained = train_lora_via_runpod(lora_id, dataset_repo_id)
-
     try:
-        api.delete_repo(repo_id=dataset_repo_id, repo_type="dataset")
-        print("✅ Dataset repo deleted successfully.")
-    except Exception as e:
-        print(f"❌ Failed to delete dataset repo: {e}")
+        if upload_ds_to_hf(api, dataset_repo_id, dataset_file_path):
+            lora_trained = train_lora_via_runpod(lora_id, dataset_repo_id)
+            # Optionally return here if success path doesn't need delete+cleanup:
+            # return lora_trained
 
-    return {"status": "error", "message": "Dataset upload failed."}
+        try:
+            api.delete_repo(repo_id=dataset_repo_id, repo_type="dataset")
+            print("✅ Dataset repo deleted successfully.")
+        except Exception as e:
+            print(f"❌ Failed to delete dataset repo: {e}")
+
+        return {"status": "error", "message": "Dataset upload failed or training not triggered."}
+
+    finally:
+        try:
+            os.remove(dataset_file_path)
+            print(f"🧹 Deleted temp dataset file: {dataset_file_path}")
+        except Exception as e:
+            print(f"⚠️ Failed to delete temp dataset file: {e}")
+
 
 def upload_ds_to_hf(api, dataset_repo_id: str, dataset_file_path: str) -> bool:
     try:
@@ -179,7 +190,11 @@ def wait_for_pod_logs(pod_name: str, retryInSec: int) -> bool:
     # Step 2: Poll logs via GraphQL (container logs)
     print("🔄 Monitoring logs for training start...")
 
-    while True:
+    numTimes = 10
+    count = 0
+    while count < numTimes:  # Retry up to 10 times
+        count += 1
+        print(f"🔄 Attempt {count}/{numTimes} to fetch logs...")
         log_query = {
             "query": """
             query PodLogs($podId: String!) {

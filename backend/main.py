@@ -1,55 +1,43 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-import os, json, tempfile, re
+import json, tempfile, re
 from backend.upload_ds_and_train_lora import upload_ds_and_train_lora
 
 app = FastAPI()
 
-origins = [
-    "http://localhost:3000"
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"], # "http://localhost:3000"
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 @app.post("/generate-voice")
-async def generate_voice(request: Request):
+async def generate_voice(request: Request, background_tasks: BackgroundTasks):
     data = await request.json()
+    print("⚡ Received request at /generate-voice:", data)
+    
     lora_id = data.get("loraId")
     text = data.get("rawText")
     email = data.get("userEmail")
 
-    # Step 1: Convert to JSONL string
     jsonl_str = text_to_jsonl_string(text)
-    
-    # Step 2: Create a temporary dataset file
+
     with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".jsonl") as temp_file:
         temp_file_path = temp_file.name
         temp_file.write(jsonl_str)
         temp_file.flush()
 
-    upload_ds_and_train_lora(lora_id, temp_file_path)
+    print(f"Adding task to background: upload_ds_and_train_lora with lora_id={lora_id} and temp_file_path={temp_file_path}")
+    # Add the task to the background tasks
+    background_tasks.add_task(upload_ds_and_train_lora, lora_id, temp_file_path)
 
-    # Step 3: Cleanup temp file (we assume lora training is done)
-    try:
-        os.remove(temp_file_path)
-    except Exception as e:
-        print(f"⚠️ Error deleting temp file: {e}")
-    
-    # Delete ds from hf
-    
-    # Remember to send email to user
-    # print("\n✅ LoRA training request processed successfully!")
-    # print("📧 Sending email to:", email)
-    
+    print("✅ Background task added for LoRA fine-tuning.")
+    # Return a response immediately
     return {
-        "status": "ready",
-        "message": "Dataset prepared. Please upload to HF and start fine-tuning manually.",
+        "status": "processing",
+        "message": "Dataset submitted. LoRA fine-tuning will run in the background.",
     }
 
 def text_to_jsonl_string(raw_text: str) -> str:
