@@ -145,30 +145,26 @@ def create_runpod_training_pod(lora_id: str, dataset_repo_id: str) -> str:
 
 def wait_for_pod_logs(pod_name: str, retryInSec: int) -> bool:
     headers = {"Authorization": f"Bearer {os.getenv('RUNPOD_API_KEY')}"}
-    query = {
-    "query": """
-    query {
-        myself {
-            pods {
-                id
-                name
-            }
-        }
-    }
-    """
-    }
-
     pod_id = None
-    print("⏳ Waiting for pod to appear...")
 
-    # Wait until the pod appears
+    # Step 1: Wait for pod to appear
+    print("⏳ Waiting for pod to appear...")
     while not pod_id:
-        response = requests.post("https://api.runpod.io/graphql", json=query, headers=headers)
+        response = requests.post("https://api.runpod.io/graphql", json={
+            "query": """
+                query {
+                    myself {
+                        pods {
+                            id
+                            name
+                        }
+                    }
+                }
+            """
+        }, headers=headers)
         data = response.json()
 
-        pods = data.get("data", {}).get("myself", {}).get("pods", [])
-
-        for pod in pods:
+        for pod in data.get("data", {}).get("myself", {}).get("pods", []):
             print(f"POD: {pod['name']} (id: {pod['id']})")
             if pod["name"] == pod_name:
                 pod_id = pod["id"]
@@ -179,13 +175,37 @@ def wait_for_pod_logs(pod_name: str, retryInSec: int) -> bool:
             time.sleep(retryInSec)
 
     print(f"✅ Found pod: {pod_id}")
-    log_url = f"https://api.runpod.io/v2/{pod_id}/logs?type=system"
-    
-    while True:
-        log_response = requests.get(log_url, headers=headers)
-        log_text = log_response.text
 
-        print("📜 Logs available from pod:")
-        print(log_text)
-        print(f"🔄 Checking logs every {retryInSec}s")
+    # Step 2: Poll logs via GraphQL (container logs)
+    print("🔄 Monitoring logs for training start...")
+
+    while True:
+        log_query = {
+            "query": """
+            query PodLogs($podId: String!) {
+                podLogs(podId: $podId, type: container) {
+                    logs {
+                        time
+                        message
+                    }
+                }
+            }
+            """,
+            "variables": {"podId": pod_id}
+        }
+
+        log_response = requests.post("https://api.runpod.io/graphql", json=log_query, headers=headers)
+        log_data = log_response.json()
+
+        logs = log_data.get("data", {}).get("podLogs", {}).get("logs", [])
+        if not logs:
+            print(f"📜 No logs yet. Waiting {retryInSec}s...")
+        else:
+            for log in logs:
+                msg = log["message"].lower()
+                print(f"[{log['time']}] {msg}")
+                if "start container" in msg or "begin" in msg:
+                    print("✅ Detected training start.")
+                    return True
+
         time.sleep(retryInSec)
