@@ -150,7 +150,7 @@ export default function CreatorDashboard() {
         .filter(Boolean)
         .join(' ');
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_BACKEND_URL}/api/generate-voice`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_BACKEND_URL}/generate-voice`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
