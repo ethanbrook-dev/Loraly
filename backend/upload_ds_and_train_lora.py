@@ -1,3 +1,4 @@
+import json
 import os
 import requests
 import time
@@ -60,7 +61,7 @@ def train_lora_via_runpod(lora_id: str, dataset_repo_id: str) -> dict:
     if pod_id is None:
         return {"status": "error", "message": "Failed to create pod"}
 
-    if not wait_for_pod_logs(pod_name=f"{lora_id}-trainer", retryInSec=30):
+    if not wait_for_pod_to_start(pod_name=f"{lora_id}-trainer", retryInSec=10):
         return {"status": "error", "message": "Pod logs did not show training start."}
 
     print("✅ Pod ready and training environment initialized.")
@@ -154,7 +155,7 @@ def create_runpod_training_pod(lora_id: str, dataset_repo_id: str) -> str:
     print("❌ All eligible GPUs failed to create pod.")
     return None
 
-def wait_for_pod_logs(pod_name: str, retryInSec: int) -> bool:
+def wait_for_pod_to_start(pod_name: str, retryInSec: int, maxRuntimeChecks: int = 5) -> bool:
     headers = {"Authorization": f"Bearer {os.getenv('RUNPOD_API_KEY')}"}
     pod_id = None
 
@@ -187,40 +188,56 @@ def wait_for_pod_logs(pod_name: str, retryInSec: int) -> bool:
 
     print(f"✅ Found pod: {pod_id}")
 
-    # Step 2: Poll logs via GraphQL (container logs)
-    print("🔄 Monitoring logs for training start...")
+    # Step 2: Poll pod info via GraphQL
+    print("🔄 Monitoring pod status...")
 
-    numTimes = 10
-    count = 0
-    while count < numTimes:  # Retry up to 10 times
-        count += 1
-        print(f"🔄 Attempt {count}/{numTimes} to fetch logs...")
-        log_query = {
+    count = 1
+    while count < maxRuntimeChecks:
+        print(f"\n🔄 Fetching pods info ({count}/{maxRuntimeChecks})")
+
+        query = {
             "query": """
-            query PodLogs($podId: String!) {
-                podLogs(podId: $podId, type: container) {
-                    logs {
-                        time
-                        message
+            query Pods {
+            myself {
+                pods {
+                id
+                name
+                runtime {
+                    uptimeInSeconds
+                    ports {
+                    ip
+                    isIpPublic
+                    privatePort
+                    publicPort
+                    type
+                    }
+                    gpus {
+                    id
+                    gpuUtilPercent
+                    memoryUtilPercent
+                    }
+                    container {
+                    cpuPercent
+                    memoryPercent
                     }
                 }
+                }
             }
-            """,
-            "variables": {"podId": pod_id}
+            }
+            """
         }
 
-        log_response = requests.post("https://api.runpod.io/graphql", json=log_query, headers=headers)
-        log_data = log_response.json()
+        response = requests.post("https://api.runpod.io/graphql", json=query, headers=headers)
+        data = response.json()
 
-        logs = log_data.get("data", {}).get("podLogs", {}).get("logs", [])
-        if not logs:
-            print(f"📜 No logs yet. Waiting {retryInSec}s...")
-        else:
-            for log in logs:
-                msg = log["message"].lower()
-                print(f"[{log['time']}] {msg}")
-                if "start container" in msg or "begin" in msg:
-                    print("✅ Detected training start.")
-                    return True
+        pods = data.get("data", {}).get("myself", {}).get("pods", [])
+        for pod in pods:
+            if pod["name"] == pod_name and pod.get("runtime") is not None:
+                print("✅ Runtime is now available.")
+                return True
 
+        print(f"⏳ Runtime not ready yet. Sleeping for {retryInSec} seconds...\n")
         time.sleep(retryInSec)
+        count += 1
+    print("❌ Pod runtime did not become available in time.")
+

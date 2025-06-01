@@ -16,7 +16,6 @@ app.add_middleware(
 @app.post("/generate-voice")
 async def generate_voice(request: Request, background_tasks: BackgroundTasks):
     data = await request.json()
-    print("⚡ Received request at /generate-voice:", data)
     
     lora_id = data.get("loraId")
     text = data.get("rawText")
@@ -28,13 +27,9 @@ async def generate_voice(request: Request, background_tasks: BackgroundTasks):
         temp_file_path = temp_file.name
         temp_file.write(jsonl_str)
         temp_file.flush()
-
-    print(f"Adding task to background: upload_ds_and_train_lora with lora_id={lora_id} and temp_file_path={temp_file_path}")
-    # Add the task to the background tasks
+        
     background_tasks.add_task(upload_ds_and_train_lora, lora_id, temp_file_path)
 
-    print("✅ Background task added for LoRA fine-tuning.")
-    # Return a response immediately
     return {
         "status": "processing",
         "message": "Dataset submitted. LoRA fine-tuning will run in the background.",
