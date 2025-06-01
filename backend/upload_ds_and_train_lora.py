@@ -13,7 +13,7 @@ def upload_ds_and_train_lora(lora_id: str, dataset_file_path: str) -> dict:
     api = HfApi(token=os.getenv('HF_TOKEN'))
 
     if upload_ds_to_hf(api, dataset_repo_id, dataset_file_path):
-        return train_lora_via_runpod(lora_id, dataset_repo_id)
+        lora_trained = train_lora_via_runpod(lora_id, dataset_repo_id)
 
     try:
         api.delete_repo(repo_id=dataset_repo_id, repo_type="dataset")
@@ -49,7 +49,7 @@ def train_lora_via_runpod(lora_id: str, dataset_repo_id: str) -> dict:
     if pod_id is None:
         return {"status": "error", "message": "Failed to create pod"}
 
-    if not wait_for_pod_logs(pod_name=f"{lora_id}-trainer"):
+    if not wait_for_pod_logs(pod_name=f"{lora_id}-trainer", retryInSec=30):
         return {"status": "error", "message": "Pod logs did not show training start."}
 
     print("✅ Pod ready and training environment initialized.")
@@ -143,39 +143,49 @@ def create_runpod_training_pod(lora_id: str, dataset_repo_id: str) -> str:
     print("❌ All eligible GPUs failed to create pod.")
     return None
 
-def wait_for_pod_logs(pod_name: str, timeout: int = 600, interval: int = 10) -> bool:
+def wait_for_pod_logs(pod_name: str, retryInSec: int) -> bool:
     headers = {"Authorization": f"Bearer {os.getenv('RUNPOD_API_KEY')}"}
     query = {
-        "query": """
-        query {
+    "query": """
+    query {
+        myself {
             pods {
                 id
                 name
             }
         }
-        """
+    }
+    """
     }
 
-    start_time = time.time()
     pod_id = None
+    print("⏳ Waiting for pod to appear...")
 
-    while time.time() - start_time < timeout:
+    # Wait until the pod appears
+    while not pod_id:
         response = requests.post("https://api.runpod.io/graphql", json=query, headers=headers)
         data = response.json()
 
-        pods = data.get("data", {}).get("pods", [])
+        pods = data.get("data", {}).get("myself", {}).get("pods", [])
+
         for pod in pods:
+            print(f"POD: {pod['name']} (id: {pod['id']})")
             if pod["name"] == pod_name:
                 pod_id = pod["id"]
                 break
 
-        if pod_id:
-            log_url = f"https://api.runpod.io/v2/{pod_id}/logs?type=system"
-            log_response = requests.get(log_url, headers=headers)
-            if "start container for runpod/llm-finetuning:latest: begin" in log_response.text:
-                return True
+        if not pod_id:
+            print(f"🔄 Pod not found yet, retrying in {retryInSec}s...")
+            time.sleep(retryInSec)
 
-        time.sleep(interval)
+    print(f"✅ Found pod: {pod_id}")
+    log_url = f"https://api.runpod.io/v2/{pod_id}/logs?type=system"
+    
+    while True:
+        log_response = requests.get(log_url, headers=headers)
+        log_text = log_response.text
 
-    print("❌ Timeout waiting for container startup log.")
-    return False
+        print("📜 Logs available from pod:")
+        print(log_text)
+        print(f"🔄 Checking logs every {retryInSec}s")
+        time.sleep(retryInSec)
