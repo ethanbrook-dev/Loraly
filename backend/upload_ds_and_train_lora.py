@@ -40,6 +40,13 @@ def upload_dataset(api: HfApi, repo_id: str, file_path: str) -> bool:
         return False
 
 def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> dict:
+    
+    # These are the config filepath (you can read from this and put into the pod creation)
+    # Also the output_model_path is the path where the model will be saved
+    print("🔄 Starting training pipeline...")
+    config_out = f"lora_training_config_{lora_id}.yaml"
+    output_model_path = generate_config("lora_training_config.yaml", config_out, dataset_repo_id)
+    
     pod_id = create_pod(lora_id, dataset_repo_id)
     if not pod_id:
         return {"status": "error", "message": "Failed to create RunPod pod."}
@@ -47,11 +54,7 @@ def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> dict:
     if not wait_for_pod_ready(lora_id):
         return {"status": "error", "message": "Pod runtime not initialized."}
 
-    config_out = f"lora_training_config_{lora_id}.yaml"
-    output_model_path = generate_config("lora_training_config.yaml", config_out, dataset_repo_id)
-
-    if not upload_config_to_pod(pod_id, config_out, "/workspace/fine-tuning/config.yaml"):
-        return {"status": "error", "message": "Failed to upload config to pod."}
+    
 
     print("✅ Training config uploaded to pod.")
     return {"status": "success", "pod_id": pod_id}
@@ -178,39 +181,6 @@ def generate_config(template_path: str, output_path: str, dataset_repo_id: str) 
 
     print(f"✅ Config written: {output_path}")
     return model_output_path
-
-def upload_config_to_pod(pod_id: str, local_path: str, remote_path: str) -> bool:
-    if not os.path.exists(local_path):
-        print(f"❌ Missing file: {local_path}")
-        return False
-
-    try:
-        with open(local_path, "rb") as f:
-            file_content = f.read()
-        encoded_content = base64.b64encode(file_content).decode("utf-8")
-    except Exception as e:
-        print(f"❌ Failed to read or encode config: {e}")
-        return False
-
-    url = f"https://api.runpod.io/v2/{pod_id}/file/upload"
-    headers = {
-        "Authorization": f"Bearer {os.getenv('RUNPOD_API_KEY')}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "path": remote_path,
-        "file": encoded_content
-    }
-
-    print(f"📤 Uploading config to pod {pod_id} as {remote_path}...")
-    resp = requests.post(url, headers=headers, json=payload)
-
-    if resp.status_code == 200:
-        print("✅ Config file uploaded successfully.")
-        return True
-    else:
-        print(f"❌ Upload failed: {resp.status_code} - {resp.text}")
-        return False
 
 def cleanup(temp_path: str, api: HfApi, dataset_repo_id: str):
     try:
