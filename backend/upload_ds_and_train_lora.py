@@ -41,13 +41,16 @@ def upload_dataset(api: HfApi, repo_id: str, file_path: str) -> bool:
 
 def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> dict:
     
-    # These are the config filepath (you can read from this and put into the pod creation)
-    # Also the output_model_path is the path where the model will be saved
     print("🔄 Starting training pipeline...")
-    config_out = f"lora_training_config_{lora_id}.yaml"
-    output_model_path = generate_config("lora_training_config.yaml", config_out, dataset_repo_id)
+    model_output_path = "myModelPath"
     
-    pod_id = create_pod(lora_id, dataset_repo_id)
+    config_content = generate_config("lora_training_config.yaml", dataset_repo_id, model_output_path)
+    print(f"🔄 Generated training config. content is:\n {config_content}")
+    
+    print("🔄 Creating RunPod pod for training...")
+    pod_id = create_pod(lora_id, dataset_repo_id, config_content)
+    print(f"🔄 Pod ID: {pod_id}")
+    
     if not pod_id:
         return {"status": "error", "message": "Failed to create RunPod pod."}
 
@@ -59,7 +62,7 @@ def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> dict:
     print("✅ Training config uploaded to pod.")
     return {"status": "success", "pod_id": pod_id}
 
-def create_pod(lora_id: str, dataset_repo_id: str) -> str:
+def create_pod(lora_id: str, dataset_repo_id: str, config_content: str) -> str:
     headers = runpod_headers()
     pod_name = f"{lora_id}-trainer"
 
@@ -86,7 +89,7 @@ def create_pod(lora_id: str, dataset_repo_id: str) -> str:
                 "minMemoryInGb": 15,
                 "gpuTypeId": gpu["id"],
                 "name": pod_name,
-                "imageName": "runpod/llm-finetuning:latest",
+                "imageName": "docker3randomdude/lora-trainer:latest", # My custom docker image
                 "dockerArgs": "",
                 "ports": "8888/http",
                 "volumeMountPath": "/workspace",
@@ -94,7 +97,9 @@ def create_pod(lora_id: str, dataset_repo_id: str) -> str:
                     {"key": "HF_TOKEN", "value": os.getenv("HF_TOKEN")},
                     {"key": "HF_USERNAME", "value": os.getenv("HF_USERNAME")},
                     {"key": "BASE_MODEL", "value": os.getenv("HF_MODEL_ID")},
-                    {"key": "DATASET_REPO", "value": dataset_repo_id}
+                    {"key": "DATASET_REPO", "value": dataset_repo_id},
+                    {"key": "LORA_ID", "value": lora_id},
+                    {"key": "CONFIG_YAML", "value": config_content}
                 ]
             }
         }
@@ -162,11 +167,10 @@ def wait_for_pod_ready(lora_id: str, interval=53, retries=30) -> bool:
     print("❌ Runtime not ready in time.")
     return False
 
-def generate_config(template_path: str, output_path: str, dataset_repo_id: str) -> str:
+def generate_config(template_path: str, dataset_repo_id: str, model_output_path: str) -> str:
     with open(template_path, "r") as f:
         content = f.read()
 
-    model_output_path = "myModelPath"
     replacements = {
         "--BASE_MODEL--": os.getenv("HF_MODEL_ID"),
         "--DATASET_REPO_ID--": dataset_repo_id,
@@ -175,12 +179,9 @@ def generate_config(template_path: str, output_path: str, dataset_repo_id: str) 
 
     for placeholder, value in replacements.items():
         content = content.replace(placeholder, value)
-
-    with open(output_path, "w") as f:
-        f.write(content)
-
-    print(f"✅ Config written: {output_path}")
-    return model_output_path
+        
+    print(f"New content is:\n{content}")
+    return content
 
 def cleanup(temp_path: str, api: HfApi, dataset_repo_id: str):
     try:

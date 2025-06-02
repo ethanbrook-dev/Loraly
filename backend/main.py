@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 import json, tempfile, re
+from backend.upload_ds_and_train_lora import upload_ds_and_train_lora
 
 app = FastAPI()
 
@@ -20,12 +21,14 @@ async def generate_voice(request: Request, background_tasks: BackgroundTasks):
     text = data.get("rawText")
     email = data.get("userEmail")
 
+    jsonl_str = text_to_jsonl_string(text)
+
     with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".jsonl") as temp_file:
         temp_file_path = temp_file.name
-        temp_file.write(text_to_jsonl_string(text))
+        temp_file.write(jsonl_str)
         temp_file.flush()
         
-    #################################################################################
+    background_tasks.add_task(upload_ds_and_train_lora, lora_id, temp_file_path)
 
     return {
         "status": "processing",
