@@ -1,9 +1,10 @@
-import json
 import os
-import requests
 import time
-from huggingface_hub import HfApi
+import json
+import base64
+import requests
 from dotenv import load_dotenv
+from huggingface_hub import HfApi
 
 # Load environment variables
 env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env.local'))
@@ -14,103 +15,64 @@ def upload_ds_and_train_lora(lora_id: str, dataset_file_path: str) -> dict:
     api = HfApi(token=os.getenv('HF_TOKEN'))
 
     try:
-        if upload_ds_to_hf(api, dataset_repo_id, dataset_file_path):
-            lora_trained = train_lora_via_runpod(lora_id, dataset_repo_id)
-            # Optionally return here if success path doesn't need delete+cleanup:
-            # return lora_trained
-
-        try:
-            api.delete_repo(repo_id=dataset_repo_id, repo_type="dataset")
-            print("✅ Dataset repo deleted successfully.")
-        except Exception as e:
-            print(f"❌ Failed to delete dataset repo: {e}")
-
-        return {"status": "error", "message": "Dataset upload failed or training not triggered."}
-
+        if upload_dataset(api, dataset_repo_id, dataset_file_path):
+            training_result = start_training_pipeline(lora_id, dataset_repo_id)
+            if training_result["status"] == "success":
+                return training_result
     finally:
-        try:
-            os.remove(dataset_file_path)
-            print(f"🧹 Deleted temp dataset file: {dataset_file_path}")
-        except Exception as e:
-            print(f"⚠️ Failed to delete temp dataset file: {e}")
+        cleanup(dataset_file_path, api, dataset_repo_id)
 
+    return {"status": "error", "message": "Dataset upload or training failed."}
 
-def upload_ds_to_hf(api, dataset_repo_id: str, dataset_file_path: str) -> bool:
+def upload_dataset(api: HfApi, repo_id: str, file_path: str) -> bool:
     try:
-        api.create_repo(repo_id=dataset_repo_id, repo_type="dataset", private=True, exist_ok=True)
-        print("✅ Private dataset repo created (or already exists).")
-    except Exception as e:
-        print(f"❌ Failed to create dataset repo: {e}")
-        return False
-
-    try:
+        api.create_repo(repo_id=repo_id, repo_type="dataset", private=True, exist_ok=True)
         api.upload_file(
-            path_or_fileobj=dataset_file_path,
+            path_or_fileobj=file_path,
             path_in_repo="data.jsonl",
-            repo_id=dataset_repo_id,
+            repo_id=repo_id,
             repo_type="dataset"
         )
-        print("✅ Dataset uploaded successfully.")
+        print("✅ Dataset uploaded.")
         return True
     except Exception as e:
-        print(f"❌ Failed to upload dataset file: {e}")
+        print(f"❌ Dataset upload failed: {e}")
         return False
 
-def train_lora_via_runpod(lora_id: str, dataset_repo_id: str) -> dict:
-    pod_id = create_runpod_training_pod(lora_id, dataset_repo_id)
-    if pod_id is None:
-        return {"status": "error", "message": "Failed to create pod"}
+def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> dict:
+    pod_id = create_pod(lora_id, dataset_repo_id)
+    if not pod_id:
+        return {"status": "error", "message": "Failed to create RunPod pod."}
 
-    if not wait_for_pod_to_start(pod_name=f"{lora_id}-trainer", retryInSec=10):
-        return {"status": "error", "message": "Pod logs did not show training start."}
+    if not wait_for_pod_ready(lora_id):
+        return {"status": "error", "message": "Pod runtime not initialized."}
 
-    print("✅ Pod ready and training environment initialized.")
+    config_out = f"lora_training_config_{lora_id}.yaml"
+    output_model_path = generate_config("lora_training_config.yaml", config_out, dataset_repo_id)
+
+    if not upload_config_to_pod(pod_id, config_out, "/workspace/fine-tuning/config.yaml"):
+        return {"status": "error", "message": "Failed to upload config to pod."}
+
+    print("✅ Training config uploaded to pod.")
     return {"status": "success", "pod_id": pod_id}
 
-def create_runpod_training_pod(lora_id: str, dataset_repo_id: str) -> str:
+def create_pod(lora_id: str, dataset_repo_id: str) -> str:
+    headers = runpod_headers()
     pod_name = f"{lora_id}-trainer"
-    image_name = "runpod/llm-finetuning:latest"
 
-    headers = {
-        "Authorization": f"Bearer {os.getenv('RUNPOD_API_KEY')}",
-        "Content-Type": "application/json"
-    }
-
-    query = {
-        "query": """
-        query {
-            gpuTypes {
-                id
-                displayName
-                memoryInGb
-            }
-        }
-        """
-    }
-
-    response = requests.post("https://api.runpod.io/graphql", json=query, headers=headers)
-    data = response.json()
-
-    if "errors" in data:
-        print("❌ Error fetching GPU types:", data["errors"])
+    query = {"query": "query { gpuTypes { id displayName memoryInGb } }"}
+    resp = requests.post("https://api.runpod.io/graphql", json=query, headers=headers).json()
+    if "errors" in resp:
+        print("❌ Failed to fetch GPU types:", resp["errors"])
         return None
 
-    gpus = data["data"]["gpuTypes"]
-    eligible_gpus = sorted([g for g in gpus if g["memoryInGb"] >= 24], key=lambda x: x["memoryInGb"])
-    if not eligible_gpus:
-        print("❌ No suitable GPUs (≥24GB) found.")
+    gpus = sorted([g for g in resp["data"]["gpuTypes"] if g["memoryInGb"] >= 24], key=lambda x: x["memoryInGb"])
+    if not gpus:
+        print("❌ No eligible GPUs found.")
         return None
 
-    for gpu in eligible_gpus:
-        print(f"🔍 Trying GPU: {gpu['displayName']} ({gpu['id']}) with {gpu['memoryInGb']} GB")
-
-        env_vars = [
-            {"key": "HF_TOKEN", "value": os.getenv('HF_TOKEN')},
-            {"key": "HF_USERNAME", "value": os.getenv('HF_USERNAME')},
-            {"key": "BASE_MODEL", "value": os.getenv('HF_MODEL_ID')},
-            {"key": "DATASET_REPO", "value": dataset_repo_id}
-        ]
-
+    for gpu in gpus:
+        print(f"🔍 Trying GPU: {gpu['displayName']} ({gpu['memoryInGb']} GB)")
         payload = {
             "input": {
                 "cloudType": "ALL",
@@ -121,123 +83,150 @@ def create_runpod_training_pod(lora_id: str, dataset_repo_id: str) -> str:
                 "minMemoryInGb": 15,
                 "gpuTypeId": gpu["id"],
                 "name": pod_name,
-                "imageName": image_name,
+                "imageName": "runpod/llm-finetuning:latest",
                 "dockerArgs": "",
                 "ports": "8888/http",
                 "volumeMountPath": "/workspace",
-                "env": env_vars
+                "env": [
+                    {"key": "HF_TOKEN", "value": os.getenv("HF_TOKEN")},
+                    {"key": "HF_USERNAME", "value": os.getenv("HF_USERNAME")},
+                    {"key": "BASE_MODEL", "value": os.getenv("HF_MODEL_ID")},
+                    {"key": "DATASET_REPO", "value": dataset_repo_id}
+                ]
             }
         }
 
-        create_response = requests.post(
-            "https://api.runpod.io/graphql",
-            json={
-                "query": """
-                mutation PodFindAndDeployOnDemand($input: PodFindAndDeployOnDemandInput!) {
-                    podFindAndDeployOnDemand(input: $input) {
-                        id
-                    }
-                }
-                """,
-                "variables": {"input": payload["input"]}
-            },
-            headers=headers
-        )
+        create_resp = requests.post("https://api.runpod.io/graphql", headers=headers, json={
+            "query": """
+            mutation PodFindAndDeployOnDemand($input: PodFindAndDeployOnDemandInput!) {
+                podFindAndDeployOnDemand(input: $input) { id }
+            }
+            """,
+            "variables": {"input": payload["input"]}
+        }).json()
 
-        pod_data = create_response.json()
-        if "errors" in pod_data:
-            print(f"❌ Failed to create pod with {gpu['displayName']}: {pod_data['errors']}")
+        if "errors" in create_resp:
+            print(f"❌ Pod creation failed for {gpu['displayName']}: {create_resp['errors']}")
             continue
-        pod_id = pod_data["data"]["podFindAndDeployOnDemand"]["id"]
-        print(f"✅ Pod created with {gpu['displayName']}: {pod_id}")
+
+        pod_id = create_resp["data"]["podFindAndDeployOnDemand"]["id"]
+        print(f"✅ Pod created: {pod_id}")
         return pod_id
 
-    print("❌ All eligible GPUs failed to create pod.")
     return None
 
-def wait_for_pod_to_start(pod_name: str, retryInSec: int, maxRuntimeChecks: int = 5) -> bool:
-    headers = {"Authorization": f"Bearer {os.getenv('RUNPOD_API_KEY')}"}
+def wait_for_pod_ready(lora_id: str, interval=53, retries=30) -> bool:
+    headers = runpod_headers()
+    pod_name = f"{lora_id}-trainer"
+
+    print("⏳ Waiting for pod to be listed...")
     pod_id = None
-
-    # Step 1: Wait for pod to appear
-    print("⏳ Waiting for pod to appear...")
     while not pod_id:
-        response = requests.post("https://api.runpod.io/graphql", json={
-            "query": """
-                query {
-                    myself {
-                        pods {
-                            id
-                            name
-                        }
-                    }
-                }
-            """
-        }, headers=headers)
-        data = response.json()
-
-        for pod in data.get("data", {}).get("myself", {}).get("pods", []):
-            print(f"POD: {pod['name']} (id: {pod['id']})")
+        resp = requests.post("https://api.runpod.io/graphql", headers=headers, json={
+            "query": "query { myself { pods { id name } } }"
+        }).json()
+        for pod in resp.get("data", {}).get("myself", {}).get("pods", []):
             if pod["name"] == pod_name:
                 pod_id = pod["id"]
                 break
-
         if not pod_id:
-            print(f"🔄 Pod not found yet, retrying in {retryInSec}s...")
-            time.sleep(retryInSec)
+            print(f"🔄 Pod not found. Retrying in {interval}s...")
+            time.sleep(interval)
 
-    print(f"✅ Found pod: {pod_id}")
+    print(f"✅ Pod found: {pod_id}\n⏳ Waiting for runtime...")
 
-    # Step 2: Poll pod info via GraphQL
-    print("🔄 Monitoring pod status...")
-
-    count = 1
-    while count < maxRuntimeChecks:
-        print(f"\n🔄 Fetching pods info ({count}/{maxRuntimeChecks})")
-
-        query = {
+    for i in range(retries):
+        print(f"🔄 Runtime check ({i+1}/{retries})")
+        resp = requests.post("https://api.runpod.io/graphql", headers=headers, json={
             "query": """
-            query Pods {
-            myself {
-                pods {
-                id
-                name
-                runtime {
-                    uptimeInSeconds
-                    ports {
-                    ip
-                    isIpPublic
-                    privatePort
-                    publicPort
-                    type
-                    }
-                    gpus {
-                    id
-                    gpuUtilPercent
-                    memoryUtilPercent
-                    }
-                    container {
-                    cpuPercent
-                    memoryPercent
+            query {
+                myself {
+                    pods {
+                        name
+                        runtime { uptimeInSeconds }
                     }
                 }
-                }
-            }
             }
             """
-        }
-
-        response = requests.post("https://api.runpod.io/graphql", json=query, headers=headers)
-        data = response.json()
-
-        pods = data.get("data", {}).get("myself", {}).get("pods", [])
+        }).json()
+        pods = resp.get("data", {}).get("myself", {}).get("pods", [])
         for pod in pods:
-            if pod["name"] == pod_name and pod.get("runtime") is not None:
-                print("✅ Runtime is now available.")
+            if pod["name"] == pod_name and pod.get("runtime"):
+                print("✅ Runtime is ready.")
                 return True
+        time.sleep(interval)
 
-        print(f"⏳ Runtime not ready yet. Sleeping for {retryInSec} seconds...\n")
-        time.sleep(retryInSec)
-        count += 1
-    print("❌ Pod runtime did not become available in time.")
+    print("❌ Runtime not ready in time.")
+    return False
 
+def generate_config(template_path: str, output_path: str, dataset_repo_id: str) -> str:
+    with open(template_path, "r") as f:
+        content = f.read()
+
+    model_output_path = "myModelPath"
+    replacements = {
+        "--BASE_MODEL--": os.getenv("HF_MODEL_ID"),
+        "--DATASET_REPO_ID--": dataset_repo_id,
+        "--OUTPUT_DIR--": model_output_path
+    }
+
+    for placeholder, value in replacements.items():
+        content = content.replace(placeholder, value)
+
+    with open(output_path, "w") as f:
+        f.write(content)
+
+    print(f"✅ Config written: {output_path}")
+    return model_output_path
+
+def upload_config_to_pod(pod_id: str, local_path: str, remote_path: str) -> bool:
+    if not os.path.exists(local_path):
+        print(f"❌ Missing file: {local_path}")
+        return False
+
+    try:
+        with open(local_path, "rb") as f:
+            file_content = f.read()
+        encoded_content = base64.b64encode(file_content).decode("utf-8")
+    except Exception as e:
+        print(f"❌ Failed to read or encode config: {e}")
+        return False
+
+    url = f"https://api.runpod.io/v2/{pod_id}/file/upload"
+    headers = {
+        "Authorization": f"Bearer {os.getenv('RUNPOD_API_KEY')}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "path": remote_path,
+        "file": encoded_content
+    }
+
+    print(f"📤 Uploading config to pod {pod_id} as {remote_path}...")
+    resp = requests.post(url, headers=headers, json=payload)
+
+    if resp.status_code == 200:
+        print("✅ Config file uploaded successfully.")
+        return True
+    else:
+        print(f"❌ Upload failed: {resp.status_code} - {resp.text}")
+        return False
+
+def cleanup(temp_path: str, api: HfApi, dataset_repo_id: str):
+    try:
+        os.remove(temp_path)
+        print(f"🧹 Deleted local dataset: {temp_path}")
+    except Exception as e:
+        print(f"⚠️ Failed to delete local file: {e}")
+
+    try:
+        api.delete_repo(repo_id=dataset_repo_id, repo_type="dataset")
+        print("🧼 Deleted HF dataset repo.")
+    except Exception as e:
+        print(f"⚠️ Failed to delete HF dataset repo: {e}")
+
+def runpod_headers():
+    return {
+        "Authorization": f"Bearer {os.getenv('RUNPOD_API_KEY')}",
+        "Content-Type": "application/json"
+    }
