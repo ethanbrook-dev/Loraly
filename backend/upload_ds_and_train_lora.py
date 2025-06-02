@@ -20,7 +20,9 @@ def upload_ds_and_train_lora(lora_id: str, dataset_file_path: str) -> dict:
             if training_result["status"] == "success":
                 return training_result
     finally:
-        cleanup(dataset_file_path, api, dataset_repo_id)
+        pass
+        # Wait until its done and when model exists then delete dataset
+        # cleanup(dataset_file_path, api, dataset_repo_id)
 
     return {"status": "error", "message": "Dataset upload or training failed."}
 
@@ -41,16 +43,14 @@ def upload_dataset(api: HfApi, repo_id: str, file_path: str) -> bool:
 
 def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> dict:
     
+    # These are the config filepath (you can read from this and put into the pod creation)
+    # Also the output_model_path is the path where the model will be saved
     print("🔄 Starting training pipeline...")
-    model_output_path = "myModelPath"
-    
+    model_output_path = f"output/{lora_id}"
     config_content = generate_config("lora_training_config.yaml", dataset_repo_id, model_output_path)
-    print(f"🔄 Generated training config. content is:\n {config_content}")
     
-    print("🔄 Creating RunPod pod for training...")
-    pod_id = create_pod(lora_id, dataset_repo_id, config_content)
-    print(f"🔄 Pod ID: {pod_id}")
-    
+    # In create_pod here is where i should define my docker image and the variables i pass in ...
+    pod_id = create_pod(lora_id, dataset_repo_id, model_output_path, config_content)
     if not pod_id:
         return {"status": "error", "message": "Failed to create RunPod pod."}
 
@@ -62,7 +62,7 @@ def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> dict:
     print("✅ Training config uploaded to pod.")
     return {"status": "success", "pod_id": pod_id}
 
-def create_pod(lora_id: str, dataset_repo_id: str, config_content: str) -> str:
+def create_pod(lora_id: str, dataset_repo_id: str, model_output_path: str, config_content: str) -> str:
     headers = runpod_headers()
     pod_name = f"{lora_id}-trainer"
 
@@ -99,7 +99,8 @@ def create_pod(lora_id: str, dataset_repo_id: str, config_content: str) -> str:
                     {"key": "BASE_MODEL", "value": os.getenv("HF_MODEL_ID")},
                     {"key": "DATASET_REPO", "value": dataset_repo_id},
                     {"key": "LORA_ID", "value": lora_id},
-                    {"key": "CONFIG_YAML", "value": config_content}
+                    {"key": "CONFIG_CONTENT", "value": config_content},
+                    {"key": "MODEL_OUTPUT_DIR", "value": model_output_path}
                 ]
             }
         }
@@ -179,8 +180,7 @@ def generate_config(template_path: str, dataset_repo_id: str, model_output_path:
 
     for placeholder, value in replacements.items():
         content = content.replace(placeholder, value)
-        
-    print(f"New content is:\n{content}")
+
     return content
 
 def cleanup(temp_path: str, api: HfApi, dataset_repo_id: str):
