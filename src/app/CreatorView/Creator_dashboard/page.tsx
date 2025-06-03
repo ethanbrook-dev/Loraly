@@ -247,7 +247,9 @@ export default function CreatorDashboard() {
                       </button>
                       {errorLoraId === lora.id && (
                         <p className="error-message">
-                          This voice needs <br /> more recordings before <br /> it can be generated.
+                          This voice needs <br /> 
+                          more recordings before <br /> 
+                          it can be generated.
                         </p>
                       )}
                     </>
@@ -262,6 +264,9 @@ export default function CreatorDashboard() {
                   <img src="/delete-icon.svg" alt="Delete" />
                 </button>
               </div>
+
+              // IF THE CLIENT TRAINED 1+ LORAS, THEN BESIDE THE CARD I SHOW A 'SHARE' OPTION
+              // Show share button and implement share logic and functionality (search like IG)
             ))}
           </div>
         )}
