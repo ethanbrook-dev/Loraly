@@ -19,7 +19,7 @@ def upload_ds_and_train_lora(lora_id: str, dataset_file_path: str) -> bool:
             training_result = start_training_pipeline(lora_id, dataset_repo_id)
             return training_result
     finally:
-        cleanup(dataset_file_path, api, dataset_repo_id)
+        cleanup(dataset_file_path, api, dataset_repo_id, lora_id)
     
     return False
 
@@ -187,7 +187,8 @@ def generate_config(template_path: str, dataset_repo_id: str, model_output_path:
 
     return content
 
-def cleanup(temp_path: str, api: HfApi, dataset_repo_id: str):
+def cleanup(temp_path: str, api: HfApi, dataset_repo_id: str, lora_id: str):
+    print("🧹 Cleaning up...")
     try:
         os.remove(temp_path)
         print(f"🧹 Deleted local dataset: {temp_path}")
@@ -199,6 +200,8 @@ def cleanup(temp_path: str, api: HfApi, dataset_repo_id: str):
         print("🧼 Deleted HF dataset repo.")
     except Exception as e:
         print(f"⚠️ Failed to delete HF dataset repo: {e}")
+        
+    # DELETE THE MODEL REPO IF EXISTS
 
 def check_lora_model_uploaded(lora_id: str) -> bool:
     model_repo_id = f"{os.getenv('HF_USERNAME')}/{lora_id}-model" # DO NOT CHANGE THIS -> the docker image will create this repo
