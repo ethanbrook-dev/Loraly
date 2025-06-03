@@ -10,21 +10,18 @@ from huggingface_hub import HfApi
 env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env.local'))
 load_dotenv(dotenv_path=env_path)
 
-def upload_ds_and_train_lora(lora_id: str, dataset_file_path: str) -> dict:
+def upload_ds_and_train_lora(lora_id: str, dataset_file_path: str) -> bool:
     dataset_repo_id = f"{os.getenv('HF_USERNAME')}/{lora_id}-dataset"
     api = HfApi(token=os.getenv('HF_TOKEN'))
 
     try:
         if upload_dataset(api, dataset_repo_id, dataset_file_path):
             training_result = start_training_pipeline(lora_id, dataset_repo_id)
-            if training_result["status"] == "success":
-                return training_result
+            return training_result
     finally:
-        pass
-        # Wait until its done and when model exists then delete dataset
-        # cleanup(dataset_file_path, api, dataset_repo_id)
-
-    return {"status": "error", "message": "Dataset upload or training failed."}
+        cleanup(dataset_file_path, api, dataset_repo_id)
+    
+    return False
 
 def upload_dataset(api: HfApi, repo_id: str, file_path: str) -> bool:
     try:
@@ -41,7 +38,7 @@ def upload_dataset(api: HfApi, repo_id: str, file_path: str) -> bool:
         print(f"❌ Dataset upload failed: {e}")
         return False
 
-def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> dict:
+def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> bool:
     
     # These are the config filepath (you can read from this and put into the pod creation)
     # Also the output_model_path is the path where the model will be saved
@@ -52,15 +49,22 @@ def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> dict:
     # In create_pod here is where i should define my docker image and the variables i pass in ...
     pod_id = create_pod(lora_id, dataset_repo_id, model_output_path, config_content)
     if not pod_id:
-        return {"status": "error", "message": "Failed to create RunPod pod."}
+        return False
 
     if not wait_for_pod_ready(lora_id):
-        return {"status": "error", "message": "Pod runtime not initialized."}
-
-    
+        return False
 
     print("✅ Training config uploaded to pod.")
-    return {"status": "success", "pod_id": pod_id}
+    print("⏳ Waiting for model to appear on HF...")
+
+    for _ in range(60):  # ~30 minutes (60 * 30s)
+        if check_lora_model_uploaded(lora_id):
+            print("✅ LoRA model found on HF.")
+            return True
+        time.sleep(30)
+
+    print("❌ Timed out waiting for LoRA model to upload.")
+    return False
 
 def create_pod(lora_id: str, dataset_repo_id: str, model_output_path: str, config_content: str) -> str:
     headers = runpod_headers()
@@ -195,6 +199,22 @@ def cleanup(temp_path: str, api: HfApi, dataset_repo_id: str):
         print("🧼 Deleted HF dataset repo.")
     except Exception as e:
         print(f"⚠️ Failed to delete HF dataset repo: {e}")
+
+def check_lora_model_uploaded(lora_id: str) -> bool:
+    model_repo_id = f"{os.getenv('HF_USERNAME')}/{lora_id}-model" # DO NOT CHANGE THIS -> the docker image will create this repo
+    api = HfApi(token=os.getenv('HF_TOKEN'))
+
+    try:
+        files = api.list_repo_files(repo_id=model_repo_id, repo_type="model")
+        return any(
+            "adapter" in f or 
+            "pytorch_model" in f or 
+            f.endswith(".safetensors") 
+            for f in files
+        )
+    except Exception as e:
+        print(f"⚠️ Error checking model upload: {e}")
+        return False
 
 def runpod_headers():
     return {
