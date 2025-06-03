@@ -723,3 +723,24 @@ audio {
     padding: 0.8em 1em;
   }
 }
+
+.training-message {
+  margin: 1rem auto;
+  padding: 1rem 1.5rem;
+  max-width: 400px;
+  background-color: #f0f4ff; /* soft blue */
+  color: #2a3a8c; /* dark blue */
+  font-size: 1.1rem;
+  font-weight: 500;
+  border-radius: 8px;
+  text-align: center;
+  box-shadow: 0 4px 10px rgba(42, 58, 140, 0.15);
+  user-select: none;
+  animation: fadeIn 0.6s ease forwards;
+}
+
+/* Simple fade-in animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}

@@ -27,6 +27,8 @@ export default function CreatorDashboard() {
   const [loadingLoraId, setLoadingLoraId] = useState<string | null>(null);
   const [errorLoraId, setErrorLoraId] = useState<string | null>(null);
 
+  const [trainingMessage, setTrainingMessage] = useState<string | null>(null);
+
   // Fetch user profile
   useEffect(() => {
     async function fetchUserProfile() {
@@ -161,10 +163,9 @@ export default function CreatorDashboard() {
       });
 
       if (res.ok) {
-        alert('TODO: SHOW MESSAGE (NICE UI INSTEAD OF ALERT)');
+        router.push('../../../CreatorView/TrainingStartedPage') // Redirect to a page indicating training has started
       } else {
-        alert(`respose: ` + res + " and status: " + res.status);
-        console.error("Failed to generate voice:", res.statusText);
+        setTrainingMessage("Voice generation could not be started at this time. Please try again later.");
       }
 
     } catch (err) {
@@ -184,6 +185,10 @@ export default function CreatorDashboard() {
         profilePicUrl={profilePicUrl}
         onBackClick={() => router.push('../../../RoleSelect')}
       />
+
+      {trainingMessage && (
+        <p className="training-message">{trainingMessage}</p>
+      )}
 
       <section className="creator-voice-section">
         {loras.length === 0 ? (
