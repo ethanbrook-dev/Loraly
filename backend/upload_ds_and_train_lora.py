@@ -16,10 +16,13 @@ def upload_ds_and_train_lora(lora_id: str, dataset_file_path: str) -> bool:
 
     try:
         if upload_dataset(api, dataset_repo_id, dataset_file_path):
-            training_result = start_training_pipeline(lora_id, dataset_repo_id)
-            return training_result
+            training_successfull, pod_id = start_training_pipeline(lora_id, dataset_repo_id)
+            if training_successfull:
+                pass # Update supabase here
     finally:
         cleanup(dataset_file_path, api, dataset_repo_id, lora_id)
+        if pod_id:
+            delete_pod(pod_id)
     
     return False
 
@@ -38,7 +41,7 @@ def upload_dataset(api: HfApi, repo_id: str, file_path: str) -> bool:
         print(f"❌ Dataset upload failed: {e}")
         return False
 
-def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> bool:
+def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> tuple[bool, str | None]:
     
     # These are the config filepath (you can read from this and put into the pod creation)
     # Also the output_model_path is the path where the model will be saved
@@ -46,25 +49,24 @@ def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> bool:
     model_output_path = f"output/{lora_id}"
     config_content = generate_config("lora_training_config.yaml", dataset_repo_id, model_output_path)
     
-    # In create_pod here is where i should define my docker image and the variables i pass in ...
     pod_id = create_pod(lora_id, dataset_repo_id, model_output_path, config_content)
     if not pod_id:
-        return False
+        return False, None
 
     if not wait_for_pod_ready(lora_id):
-        return False
+        return False, pod_id
 
     print("✅ Training config uploaded to pod.")
     print("⏳ Waiting for model to appear on HF...")
 
-    for _ in range(60):  # ~30 minutes (60 * 30s)
+    for _ in range(120):  # 1 hour timeout
         if check_lora_model_uploaded(lora_id):
             print("✅ LoRA model found on HF.")
-            return True
+            return True, pod_id
         time.sleep(30)
 
     print("❌ Timed out waiting for LoRA model to upload.")
-    return False
+    return False, pod_id
 
 def create_pod(lora_id: str, dataset_repo_id: str, model_output_path: str, config_content: str) -> str:
     headers = runpod_headers()
@@ -200,8 +202,6 @@ def cleanup(temp_path: str, api: HfApi, dataset_repo_id: str, lora_id: str):
         print("🧼 Deleted HF dataset repo.")
     except Exception as e:
         print(f"⚠️ Failed to delete HF dataset repo: {e}")
-        
-    # DELETE THE MODEL REPO IF EXISTS
 
 def check_lora_model_uploaded(lora_id: str) -> bool:
     model_repo_id = f"{os.getenv('HF_USERNAME')}/{lora_id}-model" # DO NOT CHANGE THIS -> the docker image will create this repo
@@ -219,8 +219,24 @@ def check_lora_model_uploaded(lora_id: str) -> bool:
         print(f"⚠️ Error checking model upload: {e}")
         return False
 
+def delete_pod(pod_id: str):
+    url = f"https://rest.runpod.io/v1/pods/{pod_id}"
+    headers = {
+        "Authorization": f"Bearer {os.getenv('RUNPOD_API_KEY')}"
+    }
+
+    try:
+        response = requests.delete(url, headers=headers)
+        if response.status_code == 200:
+            print(f"🗑️ Pod deleted successfully: {pod_id}")
+        else:
+            print(f"⚠️ Failed to delete pod: {response.status_code} - {response.text}")
+    except Exception as e:
+        print(f"⚠️ Exception while deleting pod: {e}")
+
 def runpod_headers():
     return {
         "Authorization": f"Bearer {os.getenv('RUNPOD_API_KEY')}",
         "Content-Type": "application/json"
     }
+
