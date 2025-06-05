@@ -3,9 +3,9 @@
 import { useRef, useState, useEffect } from 'react';
 import {
   getLORAProfilePicUrl,
-  generateLoraProfilePicSignedUrl,
+  generateLORAProfilePicSignedUrl,
   getAuthenticatedUser,
-  uploadToLoraProfilePics
+  uploadToLORAProfilePics
 } from './db_funcs/db_funcs';
 
 type Props = {
@@ -25,7 +25,7 @@ export default function ProfilePicture_lora({ loraId, onUploadSuccess }: Props) 
       const loraProfilePicUrl = await getLORAProfilePicUrl(loraId);
       if (!loraProfilePicUrl) return;
 
-      const signedUrl = await generateLoraProfilePicSignedUrl(loraProfilePicUrl, 60);
+      const signedUrl = await generateLORAProfilePicSignedUrl(loraProfilePicUrl, 60);
       if (!signedUrl) return;
 
       setImageUrl(signedUrl);
@@ -52,13 +52,13 @@ export default function ProfilePicture_lora({ loraId, onUploadSuccess }: Props) 
 
     const filePath = `${user.id}/${Date.now()}-${file.name}`;
 
-    const success = await uploadToLoraProfilePics(filePath, file);
+    const success = await uploadToLORAProfilePics(filePath, file);
     if (!success) {
       setErrorMsg('Failed to upload image.');
       return;
     }
 
-    const signedUrl = await generateLoraProfilePicSignedUrl(filePath, 60);
+    const signedUrl = await generateLORAProfilePicSignedUrl(filePath, 60);
     if (!signedUrl) return;
 
     setImageUrl(signedUrl);

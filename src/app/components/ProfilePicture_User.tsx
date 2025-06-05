@@ -1,7 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { supabase } from '../../../supabase/client';
+import {
+  getAuthenticatedUser,
+  getUSERProfilePicUrl,
+  generateUSERProfilePicSignedUrl,
+  uploadToUSERProfilePics
+} from './db_funcs/db_funcs';
 
 export default function ProfilePicture_user() {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -10,25 +15,16 @@ export default function ProfilePicture_user() {
 
   useEffect(() => {
     const fetchProfilePic = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await getAuthenticatedUser();
       if (!user) return;
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('profile_pic_url')
-        .eq('id', user.id)
-        .single();
+      const userProfilePicUrl = await getUSERProfilePicUrl(user.id);
+      if (!userProfilePicUrl) return;
 
-      if (error || !data?.profile_pic_url) return;
+      const signedUrl = await generateUSERProfilePicSignedUrl(userProfilePicUrl, 60);
+      if (!signedUrl) return;
 
-      const { data: signedUrlData } = await supabase
-        .storage
-        .from('avatars')
-        .createSignedUrl(data.profile_pic_url, 60);
-
-      if (signedUrlData?.signedUrl) {
-        setImageUrl(signedUrlData.signedUrl);
-      }
+      setImageUrl(signedUrl);
     };
 
     fetchProfilePic();
@@ -45,44 +41,21 @@ export default function ProfilePicture_user() {
       return;
     }
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getAuthenticatedUser();
     if (!user) return;
 
     const filePath = `${user.id}/${Date.now()}-${file.name}`;
 
-    const { error: uploadError } = await supabase
-      .storage
-      .from('avatars')
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: true,
-      });
-
-    if (uploadError) {
-      console.error('Upload failed:', uploadError);
-      setErrorMsg('Upload failed. Please try again.');
-      return;
-    }
-
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ profile_pic_url: filePath })
-      .eq('id', user.id);
-
-    if (updateError) {
-      console.error('DB update failed:', updateError);
+    const success = await uploadToUSERProfilePics(user.id, filePath, file);
+    if (!success) {
       setErrorMsg('Failed to update profile picture info.');
       return;
     }
 
-    const { data: signedUrlData } = await supabase
-      .storage
-      .from('avatars')
-      .createSignedUrl(filePath, 60);
+    const signedUrl = await generateUSERProfilePicSignedUrl(filePath, 60);
+    if (!signedUrl) return;
 
-    if (signedUrlData?.signedUrl) {
-      setImageUrl(signedUrlData.signedUrl);
-    }
+    setImageUrl(signedUrl);
   };
 
   return (

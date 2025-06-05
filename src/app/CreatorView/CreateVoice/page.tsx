@@ -2,7 +2,11 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../../../../supabase/client';
+import {
+  getAuthenticatedUser,
+  initLORA,
+  updateLORAProfilePic
+} from '../../components/db_funcs/db_funcs';
 import ProfilePicture_lora from '../../components/ProfilePicture_Lora';
 import '../../../../styles/CreatorViewStyles.css';
 
@@ -20,50 +24,17 @@ export default function CreateVoice() {
       return;
     }
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (!user || userError) {
-      setErrorMsg('You must be logged in.');
-      return;
-    }
+    const user = await getAuthenticatedUser();
+    if (!user) return;
 
     // Step 1: create the LoRA with empty profile_pic_url
-    const { data, error } = await supabase
-      .from('loras')
-      .insert([
-        {
-          creator_id: user.id,
-          name,
-          profile_pic_url: null,
-          audio_files: []
-        }
-      ])
-      .select()
-      .single();
-
-    if (error || !data?.id) {
+    const initID = await initLORA(user.id, name.trim());
+    if (!initID) {
       setErrorMsg('Error creating voice. Try again.');
       return;
     }
 
-    setLoraId(data.id); // trigger showing the image uploader
-  };
-
-  const handleUploadSuccess = async (filePath: string) => {
-    if (!loraId) return;
-
-    setImageUrl(filePath);
-
-    // Step 2: update the LoRA record with the new image path
-    const { error } = await supabase
-      .from('loras')
-      .update({ profile_pic_url: filePath })
-      .eq('id', loraId);
-
-    if (error) {
-      setErrorMsg('Failed to save profile picture.');
-    } else {
-      router.push(creator_dashboard_naviagtion);
-    }
+    setLoraId(initID); // trigger showing the image uploader
   };
 
   return (
@@ -82,12 +53,8 @@ export default function CreateVoice() {
               <button
                 className="voice-save-button"
                 onClick={async () => {
-                  const { error } = await supabase
-                    .from('loras')
-                    .update({ profile_pic_url: imageUrl })
-                    .eq('id', loraId);
-
-                  if (error) {
+                  const success = await updateLORAProfilePic(loraId, imageUrl);
+                  if (!success) {
                     setErrorMsg('Failed to save profile picture.');
                   } else {
                     router.push(creator_dashboard_naviagtion);
