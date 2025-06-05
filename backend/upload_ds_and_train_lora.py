@@ -1,30 +1,55 @@
 import os
 import time
-import json
-import base64
 import requests
 from dotenv import load_dotenv
 from huggingface_hub import HfApi
+from supabase import create_client
+from enum import Enum
+
+class LoraStatus(str, Enum):
+    TRAINING = "training"
+    TRAINING_COMPLETED = "training completed"
+    TRAINING_FAILED = "training failed"
+
+# Table names
+TABLE_LORAS = "loras"
+TABLE_PROFILES = "profiles"
+
+# Column names in 'loras' table
+COL_LORA_ID = "lora_id"
+COL_LORA_STATUS = "training_status"
+COL_CREATOR_ID = "creator_id"
+
+# Column names in 'profiles' table
+COL_PROFILE_ID = "id"
+COL_LORAS_CREATED = "loras_created"
 
 # Load environment variables
 env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env.local'))
 load_dotenv(dotenv_path=env_path)
+supabase = create_client(os.getenv('NEXT_PUBLIC_SUPABASE_URL'), os.getenv('SUPABASE_SERVICE_ROLE_KEY'))
 
-def upload_ds_and_train_lora(lora_id: str, dataset_file_path: str) -> bool:
+def upload_ds_and_train_lora(lora_id: str, dataset_file_path: str):
     dataset_repo_id = f"{os.getenv('HF_USERNAME')}/{lora_id}-dataset"
     api = HfApi(token=os.getenv('HF_TOKEN'))
+    pod_id = None
+    
+    update_lora_status(lora_id, LoraStatus.TRAINING)
 
     try:
         if upload_dataset(api, dataset_repo_id, dataset_file_path):
             training_successfull, pod_id = start_training_pipeline(lora_id, dataset_repo_id)
             if training_successfull:
-                pass # Update supabase here
+                add_created_lora_to_user(lora_id) # ✅ Add the LoRA to the creator’s profile in Supabase
+                update_lora_status(lora_id, LoraStatus.TRAINING_COMPLETED)
+            else:
+                update_lora_status(lora_id, LoraStatus.TRAINING_FAILED)
     finally:
         cleanup(dataset_file_path, api, dataset_repo_id, lora_id)
         if pod_id:
             delete_pod(pod_id)
     
-    return False
+    return
 
 def upload_dataset(api: HfApi, repo_id: str, file_path: str) -> bool:
     try:
@@ -239,4 +264,40 @@ def runpod_headers():
         "Authorization": f"Bearer {os.getenv('RUNPOD_API_KEY')}",
         "Content-Type": "application/json"
     }
+
+def add_created_lora_to_user(lora_id: str):
+    # 1. Get the creator_id for this lora_id from loras table
+    creator_resp = supabase.table(TABLE_LORAS).select(COL_CREATOR_ID).eq(COL_LORA_ID, lora_id).single().execute()
+    if creator_resp.error or not creator_resp.data:
+        print(f"⚠️ Error fetching creator_id for lora_id {lora_id}: {creator_resp.error}")
+        return
+
+    creator_id = creator_resp.data[COL_CREATOR_ID]
+
+    # 2. Fetch current loras_created array from profiles table for the creator
+    profile_resp = supabase.table(TABLE_PROFILES).select(COL_LORAS_CREATED).eq(COL_PROFILE_ID, creator_id).single().execute()
+    if profile_resp.error:
+        print(f"⚠️ Error fetching profile for user {creator_id}: {profile_resp.error}")
+        return
+
+    current_array = profile_resp.data.get(COL_LORAS_CREATED, []) or []
+
+    # 3. Append new lora_id if not already in the array (to avoid duplicates)
+    if lora_id not in current_array:
+        new_array = current_array + [lora_id]
+    else:
+        print(f"🗒️ LoRA {lora_id} already exists in user {creator_id}'s loras_created array.")
+        return
+
+    # 4. Update the profile with the new array
+    update_resp = supabase.table(TABLE_PROFILES).update({COL_LORAS_CREATED: new_array}).eq(COL_PROFILE_ID, creator_id).execute()
+    if update_resp.error:
+        print(f"⚠️ Error updating loras_created for user {creator_id}: {update_resp.error}")
+    else:
+        print(f"✅ LoRA {lora_id} added to user {creator_id}'s loras_created array.")
+
+def update_lora_status(lora_id: str, new_status: str):
+    resp = supabase.table(TABLE_LORAS).update({COL_LORA_STATUS: new_status}).eq(COL_LORA_ID, lora_id).execute()
+    if resp.error:
+        print(f"⚠️ Failed to update LoRA status for {lora_id}: {resp.error}")
 

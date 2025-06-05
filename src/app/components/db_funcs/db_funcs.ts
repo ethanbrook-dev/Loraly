@@ -27,6 +27,7 @@ type Lora = {
     name: string;
     profile_pic_url: string | null;
     audio_files: AudioFile[];
+    training_status: string;
 };
 
 type Recording = {
@@ -219,7 +220,8 @@ export async function initLORA(
                 creator_id: userId,
                 name,
                 profile_pic_url: null,
-                audio_files: []
+                audio_files: [],
+                training_status: 'untrained'
             }
         ])
         .select()
