@@ -1,7 +1,12 @@
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
-import { supabase } from '../../../supabase/client';
+import {
+  getLORAProfilePicUrl,
+  generateLoraProfilePicSignedUrl,
+  getAuthenticatedUser,
+  uploadToLoraProfilePics
+} from './db_funcs/db_funcs';
 
 type Props = {
   loraId: string;
@@ -17,22 +22,13 @@ export default function ProfilePicture_lora({ loraId, onUploadSuccess }: Props) 
     async function fetchProfilePic() {
       if (!loraId) return;
 
-      const { data, error } = await supabase
-        .from('loras')
-        .select('profile_pic_url')
-        .eq('id', loraId)
-        .single();
+      const loraProfilePicUrl = await getLORAProfilePicUrl(loraId);
+      if (!loraProfilePicUrl) return;
 
-      if (error || !data?.profile_pic_url) return;
+      const signedUrl = await generateLoraProfilePicSignedUrl(loraProfilePicUrl, 60);
+      if (!signedUrl) return;
 
-      const { data: signedUrlData, error: signedUrlError } = await supabase
-        .storage
-        .from('lora-profile-pics')
-        .createSignedUrl(data.profile_pic_url, 60);
-
-      if (signedUrlError || !signedUrlData?.signedUrl) return;
-
-      setImageUrl(signedUrlData.signedUrl);
+      setImageUrl(signedUrl);
     }
 
     fetchProfilePic();
@@ -48,38 +44,24 @@ export default function ProfilePicture_lora({ loraId, onUploadSuccess }: Props) 
       return;
     }
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (!user || userError) {
+    const user = await getAuthenticatedUser();
+    if (!user) {
       setErrorMsg('User not authenticated.');
       return;
     }
 
     const filePath = `${user.id}/${Date.now()}-${file.name}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from('lora-profile-pics')
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: true,
-      });
-
-    if (uploadError) {
-      console.error('Upload failed:', uploadError);
-      setErrorMsg('Upload failed. Please try again.');
+    const success = await uploadToLoraProfilePics(filePath, file);
+    if (!success) {
+      setErrorMsg('Failed to upload image.');
       return;
     }
 
-    const { data: signedUrlData, error: signedUrlError } = await supabase
-      .storage
-      .from('lora-profile-pics')
-      .createSignedUrl(filePath, 60);
+    const signedUrl = await generateLoraProfilePicSignedUrl(filePath, 60);
+    if (!signedUrl) return;
 
-    if (signedUrlError || !signedUrlData?.signedUrl) {
-      setErrorMsg('Could not generate preview.');
-      return;
-    }
-
-    setImageUrl(signedUrlData.signedUrl);
+    setImageUrl(signedUrl);
     onUploadSuccess(filePath); // notify parent with the file path for DB update
   };
 
