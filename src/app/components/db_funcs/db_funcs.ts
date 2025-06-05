@@ -11,8 +11,35 @@ const USER_PROFILE_PIC_BUCKET_NAME = 'avatars';
 // LORA variables:
 const LORAS_TABLE_NAME = 'loras';
 const LORAS_TABLE_ID_COL = 'id';
+const LORAS_TABLE_CREATOR_COL = 'creator_id';
 const LORAS_TABLE_PROFILE_PIC_COL = 'profile_pic_url';
 const LORA_PROFILE_PIC_BUCKET_NAME = 'lora-profile-pics';
+
+type AudioFile = {
+    name: string;
+    text: string;
+    duration: number;
+};
+
+type Lora = {
+    id: string;
+    creator_id: string;
+    name: string;
+    profile_pic_url: string | null;
+    audio_files: AudioFile[];
+};
+
+type Recording = {
+    name: string;
+    duration: number;
+    text: string;
+};
+
+type VoiceData = {
+    id: string;
+    creator_id: string;
+    recordings: Recording[];
+};
 
 export async function getAuthenticatedUser(): Promise<User | null> {
     const { data: { user }, error } = await supabase.auth.getUser();
@@ -25,21 +52,21 @@ export async function getAuthenticatedUser(): Promise<User | null> {
     return user;
 }
 
-export async function getUSERProfilePicUrl(
+export async function getUSERProfile(
     userID: string
-): Promise<string | null> {
+): Promise<any | null> {
     const { data, error } = await supabase
         .from(USER_TABLE_NAME)
-        .select(USER_TABLE_PROFILE_PIC_COL)
+        .select('*')
         .eq(USER_TABLE_ID_COL, userID)
         .single();
 
-    if (error || !data?.profile_pic_url) {
-        console.error('Error fetching ' + USER_TABLE_PROFILE_PIC_COL + ':', error);
+    if (error || !data) {
+        console.error('Error fetching full user profile:', error);
         return null;
     }
 
-    return data.profile_pic_url;
+    return data;
 }
 
 export async function generateUSERProfilePicSignedUrl(
@@ -98,12 +125,42 @@ export async function getLORAProfilePicUrl(
         .eq(LORAS_TABLE_ID_COL, loraId)
         .single();
 
-    if (error || !data?.profile_pic_url) {
-        console.error('Error fetching ' + LORAS_TABLE_PROFILE_PIC_COL + ':', error);
+    if (error || !data?.profile_pic_url) return null;
+
+    return data.profile_pic_url;
+}
+
+export async function getLORAProfilesByCreator(
+    creatorID: string
+): Promise<any | null> {
+    const { data, error } = await supabase
+        .from(LORAS_TABLE_NAME)
+        .select('*')
+        .eq(LORAS_TABLE_CREATOR_COL, creatorID)
+
+    if (error || !data) {
+        console.error('Error fetching LORA(s): ', error);
         return null;
     }
 
-    return data.profile_pic_url;
+    return data;
+}
+
+export async function getLORAProfileByID(
+    loraID: string
+): Promise<any | null> {
+    const { data, error } = await supabase
+        .from(LORAS_TABLE_NAME)
+        .select('*')
+        .eq(LORAS_TABLE_ID_COL, loraID)
+        .single();
+
+    if (error || !data) {
+        console.error('Error fetching LORA: ', error);
+        return null;
+    }
+
+    return data;
 }
 
 export async function generateLORAProfilePicSignedUrl(
@@ -125,8 +182,22 @@ export async function generateLORAProfilePicSignedUrl(
 
 export async function uploadToLORAProfilePics(
     filePath: string,
-    file: File
+    file: File,
+    oldFilePath?: string
 ): Promise<boolean> {
+    // 1. Delete old profile pic if it exists
+    if (oldFilePath) {
+        const { error: deleteError } = await supabase.storage
+            .from(LORA_PROFILE_PIC_BUCKET_NAME)
+            .remove([oldFilePath]);
+
+        if (deleteError) {
+            console.error('Error deleting old profile pic:', deleteError);
+            return false;
+        }
+    }
+
+    // 2. Upload new profile pic
     const { error } = await supabase.storage
         .from(LORA_PROFILE_PIC_BUCKET_NAME)
         .upload(filePath, file, {
@@ -134,12 +205,7 @@ export async function uploadToLORAProfilePics(
             upsert: true,
         });
 
-    if (error) {
-        console.error('Upload error:', error);
-        return false;
-    }
-
-    return true;
+    return !error;
 }
 
 export async function initLORA(
@@ -178,4 +244,33 @@ export async function updateLORAProfilePic(
     if (error) return false;
 
     return true;
+}
+
+export async function deleteLORA(lora: Lora): Promise<boolean> {
+    // Delete profile pic from storage if exists
+    if (lora.profile_pic_url) {
+        await supabase.storage
+            .from(LORA_PROFILE_PIC_BUCKET_NAME)
+            .remove([lora.profile_pic_url]);
+    }
+
+    // Delete LoRA from DB
+    const { error } = await supabase
+        .from(LORAS_TABLE_NAME)
+        .delete()
+        .eq(LORAS_TABLE_ID_COL, lora.id);
+
+    return !error;
+}
+
+export async function updateLORAAudioFiles(
+    updatedRecordings: Recording[],
+    voiceData: VoiceData | null,
+): Promise<boolean> {
+    const { error } = await supabase
+        .from(LORAS_TABLE_NAME)
+        .update({ audio_files: updatedRecordings })
+        .eq(LORAS_TABLE_ID_COL, voiceData?.id);
+
+    return !error;
 }

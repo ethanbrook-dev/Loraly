@@ -2,7 +2,10 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { supabase } from '../../../../../supabase/client';
+import {
+  updateLORAAudioFiles,
+  getLORAProfileByID
+} from '../../../components/db_funcs/db_funcs';
 import '../../../../../styles/CreatorViewStyles.css';
 
 declare global {
@@ -32,7 +35,7 @@ function formatDuration(seconds: number) {
 export default function RecordingsPage() {
   const router = useRouter();
   const params = useParams();
-  const loraid = params?.loraid;
+  const loraid = params?.loraid as string;
 
   const [voiceData, setVoiceData] = useState<VoiceData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -65,22 +68,18 @@ export default function RecordingsPage() {
   const fetchVoiceData = async () => {
     setLoading(true);
     setError('');
-    const { data, error } = await supabase
-      .from('loras')
-      .select('id, creator_id, audio_files')
-      .eq('id', loraid)
-      .single();
+    const lora = await getLORAProfileByID(loraid);
 
-    if (error || !data) {
+    if (!lora) {
       setError('Failed to load recordings.');
       setLoading(false);
       return;
     }
 
     setVoiceData({
-      id: data.id,
-      creator_id: data.creator_id,
-      recordings: data.audio_files || [],
+      id: lora.id,
+      creator_id: lora.creator_id,
+      recordings: lora.audio_files || [],
     });
 
     setLoading(false);
@@ -174,12 +173,9 @@ export default function RecordingsPage() {
 
     const updatedRecordings = [...(voiceData?.recordings || []), newEntry];
 
-    const { error } = await supabase
-      .from('loras')
-      .update({ audio_files: updatedRecordings })
-      .eq('id', voiceData?.id);
+    const audioFilesWereUpdated = await updateLORAAudioFiles(updatedRecordings, voiceData);
 
-    if (error) {
+    if (!audioFilesWereUpdated) {
       setNameError('Failed to save recording.');
       return;
     }
@@ -195,12 +191,9 @@ export default function RecordingsPage() {
 
     const updated = voiceData.recordings.filter(r => r.name !== nameToDelete);
 
-    const { error } = await supabase
-      .from('loras')
-      .update({ audio_files: updated })
-      .eq('id', voiceData.id);
+    const recordingWasDeleted = await updateLORAAudioFiles(updated, voiceData);
 
-    if (error) {
+    if (!recordingWasDeleted) {
       alert('Failed to delete recording.');
       return;
     }

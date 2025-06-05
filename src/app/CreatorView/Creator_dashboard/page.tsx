@@ -2,27 +2,50 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../../../../supabase/client';
+import {
+  getAuthenticatedUser,
+  getUSERProfile,
+  generateUSERProfilePicSignedUrl,
+  getLORAProfilesByCreator,
+  deleteLORA,
+  updateLORAProfilePic
+} from '../../components/db_funcs/db_funcs';
 import ProfilePicture_lora from '../../components/ProfilePicture_Lora';
 import UserHeader from '../../components/UserHeader';
 import { MIN_WORDS_FOR_LORA_GEN } from '../../constants/MIN_WORDS_FOR_LORA_GEN';
 import '../../../../styles/CreatorViewStyles.css';
 import '../../../../styles/LoraCardStyles.css';
 
+type AudioFile = {
+  name: string;
+  text: string;
+  duration: number;
+};
+
 type Lora = {
   id: string;
+  creator_id: string;
   name: string;
   profile_pic_url: string | null;
+  audio_files: AudioFile[];
 };
+
+type UserProfile = {
+  id: string;
+  username: string;
+  email: string | null;
+  profile_pic_url: string | null;
+  loras_created: Lora[];
+  loras_shared_w_me: Lora[];
+}
 
 export default function CreatorDashboard() {
   const router = useRouter();
 
-  const [username, setUsername] = useState('Loading...');
-  const [profilePicUrl, setProfilePicUrl] = useState<string | null>(null);
+  const [userData, setUserData] = useState<UserProfile | null>(null);
+  const [userProfilePicUrl, setUserProfilePicUrl] = useState<string | null>(null);
   const [loras, setLoras] = useState<Lora[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   const [loadingLoraId, setLoadingLoraId] = useState<string | null>(null);
   const [errorLoraId, setErrorLoraId] = useState<string | null>(null);
@@ -32,32 +55,23 @@ export default function CreatorDashboard() {
   // Fetch user profile
   useEffect(() => {
     async function fetchUserProfile() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = await getAuthenticatedUser();
       if (!user) return;
-
       setUserId(user.id);
-      setUserEmail(user.email ?? null);
 
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('username, profile_pic_url')
-        .eq('id', user.id)
-        .single();
+      const userData = await getUSERProfile(user.id)
 
-      if (!profile || error) {
-        setUsername('Unknown User');
+      if (!userData) {
+        setUserData(null);
         return;
       }
 
-      setUsername(profile.username);
+      setUserData(userData);
 
-      if (profile.profile_pic_url) {
-        const { data: signedUrlData } = await supabase.storage
-          .from('avatars')
-          .createSignedUrl(profile.profile_pic_url, 60);
-        if (signedUrlData?.signedUrl) setProfilePicUrl(signedUrlData.signedUrl);
+      if (userData.profile_pic_url) {
+        const signedUrl = await generateUSERProfilePicSignedUrl(userData.profile_pic_url, 60);
+        if (!signedUrl) return;
+        setUserProfilePicUrl(signedUrl);
       }
     }
 
@@ -69,12 +83,9 @@ export default function CreatorDashboard() {
     async function fetchLoras() {
       if (!userId) return;
 
-      const { data, error } = await supabase
-        .from('loras')
-        .select('id, name, profile_pic_url')
-        .eq('creator_id', userId);
+      const loraData = await getLORAProfilesByCreator(userId);
 
-      if (!error && data) setLoras(data);
+      if (loraData) setLoras(loraData);
     }
 
     fetchLoras();
@@ -86,21 +97,16 @@ export default function CreatorDashboard() {
   }, []);
 
   // Handle LoRA Deletion
-  const handleDeleteLora = async (loraId: string, profilePicUrl: string | null) => {
+  const handleDeleteLora = async (lora: Lora) => {
     if (!confirm('Are you sure you want to delete this voice?')) return;
 
-    // Delete profile pic from storage if exists
-    if (profilePicUrl) {
-      await supabase.storage.from('avatars').remove([profilePicUrl]);
-    }
+    const loraWasDeleted = await deleteLORA(lora);
 
-    // Delete LoRA from DB
-    const { error } = await supabase.from('loras').delete().eq('id', loraId);
-
-    if (!error) {
-      setLoras((prev) => prev.filter((lora) => lora.id !== loraId));
+    if (loraWasDeleted) {
+      setLoras((prev) => prev.filter((lora1) => lora1.id !== lora.id));
     } else {
-      console.error('Error deleting LoRA:', error.message);
+      console.error('Error deleting LoRA');
+      return;
     }
   };
 
@@ -109,24 +115,18 @@ export default function CreatorDashboard() {
 
     try {
       // Fetch audio_files for this LoRA
-      const { data, error } = await supabase
-        .from('loras')
-        .select('audio_files')
-        .eq('id', loraId)
-        .single();
+      const audio_files = loras.find((lora) => lora.id === loraId)?.audio_files || [];
 
-      if (error || !data) {
-        console.error("Failed to fetch audio files:", error?.message);
+      if (audio_files.length === 0) {
+        console.error("Failed to fetch audio files");
         setErrorLoraId(loraId);
         setLoadingLoraId(null);
         setTimeout(() => setErrorLoraId(null), returnTime);
         return;
       }
 
-      const audioFiles = data.audio_files || [];
-
       // 🔍 First, we count total words
-      const totalWords = audioFiles.reduce((sum: number, file: { text: string }) => {
+      const totalWords = audio_files.reduce((sum: number, file: { text: string }) => {
         if (file?.text) {
           const wordCount = file.text.trim().split(/\s+/).length;
           return sum + wordCount;
@@ -147,7 +147,7 @@ export default function CreatorDashboard() {
       console.log("Route to another loading page saying generation started (FOR DEV) and route to pay  (FOR PRODUCTION)");
 
       // ✅ Enough words — now join everything
-      const fullText = audioFiles
+      const fullText = audio_files
         .map((file: { text: string }) => file.text?.trim())
         .filter(Boolean)
         .join(' ');
@@ -158,7 +158,6 @@ export default function CreatorDashboard() {
         body: JSON.stringify({
           loraId,
           rawText: fullText,
-          userEmail
         }),
       });
 
@@ -181,8 +180,8 @@ export default function CreatorDashboard() {
     <main className="creator-dashboard">
       <UserHeader
         role_of_user="Creator"
-        username={username}
-        profilePicUrl={profilePicUrl}
+        username={userData?.username || 'Loading...'}
+        profilePicUrl={userProfilePicUrl}
         onBackClick={() => router.push('../../../RoleSelect')}
       />
 
@@ -200,13 +199,11 @@ export default function CreatorDashboard() {
                 <div className="lora-info">
                   <ProfilePicture_lora
                     loraId={lora.id}
+                    currentProfilePicPath={lora.profile_pic_url? lora.profile_pic_url : null}
                     onUploadSuccess={async (newUrl) => {
-                      const { error } = await supabase
-                        .from('loras')
-                        .update({ profile_pic_url: newUrl })
-                        .eq('id', lora.id);
+                      const wasUpdated = await updateLORAProfilePic(lora.id, newUrl);
 
-                      if (!error) {
+                      if (!wasUpdated) {
                         setLoras((prev) =>
                           prev.map((item) =>
                             item.id === lora.id ? { ...item, profile_pic_url: newUrl } : item
@@ -258,7 +255,7 @@ export default function CreatorDashboard() {
 
                 <button
                   className="delete-button"
-                  onClick={() => handleDeleteLora(lora.id, lora.profile_pic_url)}
+                  onClick={() => handleDeleteLora(lora)}
                   title="Delete Voice"
                 >
                   <img src="/delete-icon.svg" alt="Delete" />

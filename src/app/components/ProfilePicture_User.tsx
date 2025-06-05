@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   getAuthenticatedUser,
-  getUSERProfilePicUrl,
+  getUSERProfile,
   generateUSERProfilePicSignedUrl,
   uploadToUSERProfilePics
 } from './db_funcs/db_funcs';
@@ -18,7 +18,8 @@ export default function ProfilePicture_user() {
       const user = await getAuthenticatedUser();
       if (!user) return;
 
-      const userProfilePicUrl = await getUSERProfilePicUrl(user.id);
+      const userData = await getUSERProfile(user.id);
+      const userProfilePicUrl = userData?.profile_pic_url;
       if (!userProfilePicUrl) return;
 
       const signedUrl = await generateUSERProfilePicSignedUrl(userProfilePicUrl, 60);

@@ -48,7 +48,10 @@ export default function CreateVoice() {
               <p className="voice-name-note">
                 You can now upload a profile picture for this Voice.
               </p>
-              <ProfilePicture_lora loraId={loraId} onUploadSuccess={(filePath) => setImageUrl(filePath)} />
+              <ProfilePicture_lora 
+              loraId={loraId} 
+              currentProfilePicPath={imageUrl}
+              onUploadSuccess={(filePath) => setImageUrl(filePath)} />
             </div>
               <button
                 className="voice-save-button"

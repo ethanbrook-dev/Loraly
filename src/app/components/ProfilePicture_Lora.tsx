@@ -4,16 +4,18 @@ import { useRef, useState, useEffect } from 'react';
 import {
   getLORAProfilePicUrl,
   generateLORAProfilePicSignedUrl,
+  updateLORAProfilePic,
   getAuthenticatedUser,
   uploadToLORAProfilePics
 } from './db_funcs/db_funcs';
 
 type Props = {
   loraId: string;
+  currentProfilePicPath?: string | null;
   onUploadSuccess: (url: string) => void;
 };
 
-export default function ProfilePicture_lora({ loraId, onUploadSuccess }: Props) {
+export default function ProfilePicture_lora({ loraId, currentProfilePicPath, onUploadSuccess }: Props) {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -52,9 +54,15 @@ export default function ProfilePicture_lora({ loraId, onUploadSuccess }: Props) 
 
     const filePath = `${user.id}/${Date.now()}-${file.name}`;
 
-    const success = await uploadToLORAProfilePics(filePath, file);
+    const success = await uploadToLORAProfilePics(filePath, file, currentProfilePicPath || undefined);
     if (!success) {
       setErrorMsg('Failed to upload image.');
+      return;
+    }
+
+    const dbUpdated = await updateLORAProfilePic(loraId, filePath);
+    if (!dbUpdated) {
+      setErrorMsg('Failed to update profile picture in DB.');
       return;
     }
 
