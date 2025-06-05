@@ -19,7 +19,6 @@ async def generate_voice(request: Request, background_tasks: BackgroundTasks):
     
     lora_id = data.get("loraId")
     text = data.get("rawText")
-    email = data.get("userEmail")
 
     jsonl_str = text_to_jsonl_string(text)
 
