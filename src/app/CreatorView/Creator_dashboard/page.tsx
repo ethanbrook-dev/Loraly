@@ -13,8 +13,10 @@ import {
 import ProfilePicture_lora from '../../components/ProfilePicture_Lora';
 import UserHeader from '../../components/UserHeader';
 import { MIN_WORDS_FOR_LORA_GEN } from '../../constants/MIN_WORDS_FOR_LORA_GEN';
+import { LoraStatus } from '@/app/constants/loraStatus';
 import '../../../../styles/CreatorViewStyles.css';
 import '../../../../styles/LoraCardStyles.css';
+import '../../../../styles/SharingLoraStyles.css'
 
 type AudioFile = {
   name: string;
@@ -28,6 +30,7 @@ type Lora = {
   name: string;
   profile_pic_url: string | null;
   audio_files: AudioFile[];
+  training_status: string;
 };
 
 type UserProfile = {
@@ -194,77 +197,99 @@ export default function CreatorDashboard() {
           <p className="italic">You haven’t created any voices yet.</p>
         ) : (
           <div className="loras-scroll-container">
-            {loras.map((lora) => (
-              <div key={lora.id} className="lora-card">
-                <div className="lora-info">
-                  <ProfilePicture_lora
-                    loraId={lora.id}
-                    currentProfilePicPath={lora.profile_pic_url? lora.profile_pic_url : null}
-                    onUploadSuccess={async (newUrl) => {
-                      const wasUpdated = await updateLORAProfilePic(lora.id, newUrl);
+            {loras.map((lora) => {
+              const isTraining = lora.training_status === LoraStatus.TRAINING;
+              const isTrainingCompleted = lora.training_status === LoraStatus.TRAINING_COMPLETED;
 
-                      if (!wasUpdated) {
-                        setLoras((prev) =>
-                          prev.map((item) =>
-                            item.id === lora.id ? { ...item, profile_pic_url: newUrl } : item
-                          )
-                        );
-                      }
+              return (
+                <div key={lora.id} className="lora-card">
+                  <div className="lora-info">
+                    <ProfilePicture_lora
+                      loraId={lora.id}
+                      currentProfilePicPath={lora.profile_pic_url ?? null}
+                      onUploadSuccess={async (newUrl) => {
+                        if (isTraining || isTrainingCompleted) return; // 🔒 disable during/after training
+                        const wasUpdated = await updateLORAProfilePic(lora.id, newUrl);
+                        if (!wasUpdated) {
+                          setLoras((prev) =>
+                            prev.map((item) =>
+                              item.id === lora.id ? { ...item, profile_pic_url: newUrl } : item
+                            )
+                          );
+                        }
+                      }}
+                    />
+                    <div className="lora-name">{lora.name}</div>
+                  </div>
+
+                  <div className="lora-buttons">
+                    {isTraining || isTrainingCompleted ? (
+                      <>
+                        {isTrainingCompleted && (
+                          <button
+                            className="share-button"
+                            onClick={() => router.push(`../../../CreatorView/ShareLora/${lora.id}`)}
+                          >
+                            Share Voice
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {loadingLoraId === lora.id ? (
+                          <div className="spinner" />
+                        ) : (
+                          <>
+                            <button
+                              className="record-more-button"
+                              onClick={() => {
+                                setLoadingLoraId(lora.id);
+                                setTimeout(() => {
+                                  router.push(`../../../CreatorView/Creator_recordings/${lora.id}`);
+                                }, 1000);
+                              }}
+                            >
+                              Record for this Voice
+                            </button>
+                            <button
+                              className="generate-voice-button"
+                              onClick={() => {
+                                setLoadingLoraId(lora.id);
+                                setTimeout(() => {
+                                  handleGenerateVoice(lora.id);
+                                }, 1000);
+                              }}
+                            >
+                              Generate Voice
+                            </button>
+                            {errorLoraId === lora.id && (
+                              <p className="error-message">
+                                This voice needs <br />
+                                more recordings before <br />
+                                it can be generated.
+                              </p>
+                            )}
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
+
+                  <button
+                    className="delete-button"
+                    onClick={() => {
+                      if (isTraining || isTrainingCompleted) return; // 🔒 disable delete
+                      handleDeleteLora(lora);
                     }}
-                  />
-                  <div className="lora-name">{lora.name}</div>
+                    title="Delete Voice"
+                    disabled={isTraining || isTrainingCompleted} // also disable click visually
+                  >
+                    <img src="/delete-icon.svg" alt="Delete" />
+                  </button>
                 </div>
+              );
+            })}
 
-                <div className="lora-buttons">
-                  {loadingLoraId === lora.id ? (
-                    <div className="spinner" />
-                  ) : (
-                    <>
-                      <button
-                        className="record-more-button"
-                        onClick={() => {
-                          setLoadingLoraId(lora.id);
-                          setTimeout(() => {
-                            router.push(`../../../CreatorView/Creator_recordings/${lora.id}`);
-                          }, 1000);
-                        }}
-                      >
-                        Record for this Voice
-                      </button>
-                      <button
-                        className="generate-voice-button"
-                        onClick={() => {
-                          setLoadingLoraId(lora.id);
-                          setTimeout(() => {
-                            handleGenerateVoice(lora.id);
-                          }, 1000);
-                        }}
-                      >
-                        Generate Voice
-                      </button>
-                      {errorLoraId === lora.id && (
-                        <p className="error-message">
-                          This voice needs <br /> 
-                          more recordings before <br /> 
-                          it can be generated.
-                        </p>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                <button
-                  className="delete-button"
-                  onClick={() => handleDeleteLora(lora)}
-                  title="Delete Voice"
-                >
-                  <img src="/delete-icon.svg" alt="Delete" />
-                </button>
-              </div>
-
-              // IF THE CLIENT TRAINED 1+ LORAS, THEN BESIDE THE CARD I SHOW A 'SHARE' OPTION
-              // Show share button and implement share logic and functionality (search like IG)
-            ))}
           </div>
         )}
       </section>
