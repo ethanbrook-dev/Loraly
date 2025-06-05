@@ -1,13 +1,20 @@
 'use client';
 
+// React imports
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+
+// Database functions and types imports
 import {
   getAuthenticatedUser,
   initLORA,
   updateLORAProfilePic
 } from '../../components/db_funcs/db_funcs';
+
+// Component imports
 import ProfilePicture_lora from '../../components/ProfilePicture_Lora';
+
+// Styles import
 import '../../../../styles/CreatorViewStyles.css';
 
 export default function CreateVoice() {

@@ -1,7 +1,10 @@
 'use client'
 
+// React and Next.js imports
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
+
+// Supabase client import
 import { supabase } from '../../supabase/client'
 
 export default function LoginANDSignup() {

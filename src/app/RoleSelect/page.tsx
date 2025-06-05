@@ -1,8 +1,13 @@
 'use client';
 
+// React imports
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+
+// Supabase import
 import { supabase } from '../../../supabase/client';
+
+// Component import
 import ProfilePicture_user from '../components/ProfilePicture_User';
 
 export default function RoleSelect() {

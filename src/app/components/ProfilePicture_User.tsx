@@ -1,6 +1,9 @@
 'use client';
 
+// React imports
 import { useEffect, useRef, useState } from 'react';
+
+// Database functions import
 import {
   getAuthenticatedUser,
   getUSERProfile,

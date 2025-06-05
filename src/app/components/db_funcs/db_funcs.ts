@@ -7,7 +7,6 @@ const USER_TABLE_ID_COL = 'id';
 const USER_TABLE_PROFILE_PIC_COL = 'profile_pic_url';
 const USER_PROFILE_PIC_BUCKET_NAME = 'avatars';
 
-
 // LORA variables:
 const LORAS_TABLE_NAME = 'loras';
 const LORAS_TABLE_ID_COL = 'id';

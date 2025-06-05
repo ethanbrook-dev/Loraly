@@ -1,11 +1,16 @@
 'use client';
 
+// React imports
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+
+// Database functions and types imports
 import {
   updateLORAAudioFiles,
   getLORAProfileByID
 } from '../../../components/db_funcs/db_funcs';
+
+// Styles import
 import '../../../../../styles/CreatorViewStyles.css';
 
 declare global {

@@ -1,7 +1,10 @@
 'use client';
 
+// React imports
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+
+// Database functions and types imports
 import {
   getAuthenticatedUser,
   getUSERProfile,
@@ -10,10 +13,16 @@ import {
   deleteLORA,
   updateLORAProfilePic
 } from '../../components/db_funcs/db_funcs';
+
+// Components imports
 import ProfilePicture_lora from '../../components/ProfilePicture_Lora';
 import UserHeader from '../../components/UserHeader';
+
+// Constants imports
 import { MIN_WORDS_FOR_LORA_GEN } from '../../constants/MIN_WORDS_FOR_LORA_GEN';
 import { LoraStatus } from '@/app/constants/loraStatus';
+
+// Styles imports
 import '../../../../styles/CreatorViewStyles.css';
 import '../../../../styles/LoraCardStyles.css';
 import '../../../../styles/SharingLoraStyles.css'

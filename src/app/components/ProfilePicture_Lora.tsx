@@ -1,6 +1,9 @@
 'use client';
 
+// React imports
 import { useRef, useState, useEffect } from 'react';
+
+// Database functions import
 import {
   getLORAProfilePicUrl,
   generateLORAProfilePicSignedUrl,
