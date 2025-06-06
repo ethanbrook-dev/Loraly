@@ -238,6 +238,7 @@ export default function CreatorDashboard() {
                           <p className="generating-voice-text">Generating Voice ...</p>
                         )}
                         {isTrainingCompleted && (
+
                           <button
                             className="share-button"
                             onClick={() => router.push(`../../../CreatorView/ShareLora/${lora.id}`)}
