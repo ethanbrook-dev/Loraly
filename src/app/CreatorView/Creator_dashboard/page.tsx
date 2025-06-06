@@ -241,7 +241,7 @@ export default function CreatorDashboard() {
 
                           <button
                             className="share-button"
-                            onClick={() => router.push(`../../../CreatorView/ShareLora/${lora.id}`)}
+                            onClick={() => router.push(`../../../CreatorView/ShareLora/${lora.id}/${lora.name}`)}
                           >
                             Share Voice
                           </button>

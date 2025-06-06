@@ -1,5 +1,11 @@
-/*Creator_dashboard*/
+/* Global reset for box-sizing for better sizing/scaling */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
 
+/* Creator Dashboard Container */
 .creator-dashboard {
   min-height: 100vh;
   display: flex;
@@ -9,15 +15,18 @@
   padding: 1rem;
 }
 
+/* Voice Section */
 .creator-voice-section {
   display: flex;
   justify-content: center;
   align-items: center;
   text-align: center;
-  height: 50vh;
+  min-height: 50vh; /* changed from fixed height for better scaling */
   background-color: #fff;
+  padding: 1rem;
 }
 
+/* Scroll container for LoRAs */
 .loras-scroll-container {
   display: flex;
   flex-direction: column;
@@ -27,6 +36,7 @@
   padding-right: 0.5rem;
 }
 
+/* Individual LORA card */
 .lora-card {
   display: flex;
   justify-content: space-between;
@@ -35,9 +45,11 @@
   border-radius: 12px;
   padding: 1rem;
   background: white;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  flex-wrap: wrap; /* Allow wrapping on small widths */
 }
 
+/* Delete Button */
 .delete-button {
   position: relative;
   top: 8px;
@@ -63,17 +75,25 @@
   filter: brightness(0) saturate(100%) invert(15%) sepia(100%) saturate(600%) hue-rotate(350deg);
 }
 
+/* LORA Info container */
 .lora-info {
   display: flex;
   align-items: center;
   gap: 1rem;
+  flex: 1 1 auto; /* flex grow for scaling */
+  min-width: 0; /* prevent overflow on small screens */
 }
 
+/* LORA name */
 .lora-name {
   font-size: 1.2rem;
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+/* Inner card layout */
 .lora-inner-card {
   display: flex;
   flex-direction: column;
@@ -83,8 +103,7 @@
   gap: 0.5rem;
 }
 
-/* delete duplicate of .record-more-button - use latest one in /** new **/ section */
-
+/* Footer */
 .creator-footer {
   display: flex;
   justify-content: center;
@@ -93,6 +112,7 @@
   box-shadow: 0 -1px 4px rgba(0, 0, 0, 0.05);
 }
 
+/* Create voice button */
 .create-voice-button {
   background-color: #10b981;
   color: white;
@@ -112,19 +132,20 @@
   background-color: #059669;
 }
 
-/*Creator_recordings/[loraid]*/
-
+/* Page container - merged, cleaned */
 .pageContainer {
-  max-width: 800px;
+  max-width: 900px;
   margin: 2rem auto;
-  padding: 1.5rem;
+  padding: 2rem 1.5rem; /* slightly more vertical padding */
   background: #fff;
   border-radius: 0.5rem;
   box-shadow: 0 4px 14px rgb(0 0 0 / 0.1);
   font-family: 'Inter', sans-serif;
   color: #222;
+  box-sizing: border-box;
 }
 
+/* Page title - merged */
 .pageTitle {
   font-weight: 800;
   font-size: 2.25rem;
@@ -133,6 +154,7 @@
   color: #222;
 }
 
+/* Loading and error text */
 .loadingText {
   text-align: center;
   color: #555;
@@ -144,10 +166,12 @@
   font-weight: 600;
 }
 
+/* Mic recording section */
 .recordMicSection {
   margin-bottom: 2rem;
 }
 
+/* Uploaded recordings section */
 .uploadedRecordingsSection {
   border-top: 1px solid #ddd;
   padding-top: 1rem;
@@ -162,6 +186,7 @@
   color: #111;
 }
 
+/* Container for audio files */
 .audioFilesContainer {
   max-height: 24rem;
   overflow-y: auto;
@@ -171,6 +196,7 @@
   padding-right: 0.25rem;
 }
 
+/* Each audio file row */
 .audioFileRow {
   display: grid;
   grid-template-columns: 40px 1fr 70px 20px 40px;
@@ -186,6 +212,7 @@
   background-color: #e6f2ff;
 }
 
+/* Play/stop button */
 .playStopButton {
   background: none;
   border: none;
@@ -199,9 +226,10 @@
 .playStopIcon {
   width: 24px;
   height: 24px;
-  filter: drop-shadow(0 0 1px rgba(0,0,0,0.1));
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.1));
 }
 
+/* Audio name */
 .audioName {
   font-weight: 600;
   color: #222;
@@ -211,6 +239,7 @@
   padding-left: 0.75rem;
 }
 
+/* Audio duration */
 .audioDuration {
   font-size: 0.875rem;
   color: #666;
@@ -218,6 +247,7 @@
   user-select: none;
 }
 
+/* Playing animation */
 .playingAnimation {
   width: 18px;
   height: 18px;
@@ -246,6 +276,7 @@
   }
 }
 
+/* Delete button for audio files */
 .deleteButton {
   background: none;
   border: none;
@@ -259,7 +290,7 @@
 .deleteIcon {
   width: 20px;
   height: 20px;
-  filter: drop-shadow(0 0 1px rgba(0,0,0,0.1));
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.1));
   transition: filter 0.3s ease;
 }
 
@@ -267,10 +298,12 @@
   filter: drop-shadow(0 0 4px #e53e3e);
 }
 
+/* Hide audio element */
 .hiddenAudio {
   display: none;
 }
 
+/* Text shown when no recordings */
 .noRecordingsText {
   font-style: italic;
   color: #999;
@@ -278,14 +311,14 @@
   margin-top: 1rem;
 }
 
-/*CreateVoice*/
-
+/* Create Voice container */
 .create-voice-container {
   max-width: 32rem;
   margin: 0 auto;
   padding: 2.5rem 1rem;
 }
 
+/* Create Voice title */
 .create-voice-title {
   font-size: 1.5rem;
   font-weight: 700;
@@ -293,10 +326,12 @@
   text-align: center;
 }
 
+/* Create Voice preview */
 .create-voice-preview {
   text-align: center;
 }
 
+/* Profile image */
 .voice-profile-image {
   margin: 0 auto;
   width: 8rem;
@@ -305,8 +340,7 @@
   object-fit: cover;
 }
 
-/** new **/
-
+/* Confirmation modal */
 .confirmation-modal {
   position: fixed;
   top: 0;
@@ -366,6 +400,7 @@
   color: white;
 }
 
+/* Voice name input container */
 .voice-name-input-container {
   display: flex;
   flex-direction: column;
@@ -377,6 +412,7 @@
   margin: 0 auto;
 }
 
+/* Voice name input */
 .voice-name-input {
   padding: 0.75rem;
   font-size: 1rem;
@@ -386,51 +422,25 @@
   width: 100%;
 }
 
-.voice-save-button, .record-more-button {
+/* Save & record more buttons */
+.voice-save-button {
   padding: 0.75rem;
   font-size: 1rem;
   font-weight: 600;
   border: none;
   border-radius: 0.5rem;
   cursor: pointer;
+  width: 100%;
+  max-width: 400px;
+  margin: 0.5rem auto 0 auto;
+  display: block;
+  text-align: center;
 }
 
+/* Save button */
 .voice-save-button {
   background-color: #0070f3;
   color: white;
-}
-
-.record-more-button {
-  margin-top: 0.5rem;
-  padding: 0.5rem 1rem;
-  font-size: 0.9rem;
-  font-weight: bold;
-  background-color: #d32f2f; /* bold red */
-  color: #fff; /* white text */
-  border: none;
-  border-radius: 50px; /* pill shape */
-  cursor: pointer;
-  transition: background-color 0.2s, transform 0.1s;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-}
-
-.record-more-button:hover {
-  background-color: #b71c1c; /* darker red on hover */
-  transform: scale(1.05);
-}
-
-/* Container for the whole page */
-.pageContainer {
-  padding: 4rem 2rem;
-  max-width: 900px;
-  margin: 0 auto;
-}
-
-/* Title */
-.pageTitle {
-  font-size: 2rem;
-  text-align: center;
-  margin-bottom: 2rem;
 }
 
 /* Back button */
@@ -441,13 +451,13 @@
   font-size: 1rem;
   cursor: pointer;
   margin-bottom: 2rem;
+  display: inline-block;
 }
 
 .back-btn:hover {
   text-decoration: underline;
 }
 
-/* Recording Section */
 .recordMicSection {
   display: flex;
   flex-direction: column;
@@ -456,8 +466,8 @@
 }
 
 .mic-button {
-  width: 8rem;
-  height: 8rem;
+  width: clamp(6rem, 15vw, 8rem);
+  height: clamp(6rem, 15vw, 8rem);
   border-radius: 50%;
   background-color: crimson;
   border: none;
@@ -598,8 +608,7 @@ audio {
   margin-bottom: 1rem;
 }
 
-.voice-save-button,
-.record-more-button {
+.voice-save-button {
   width: 100%;
   padding: 0.75rem;
   font-size: 1rem;
@@ -617,14 +626,6 @@ audio {
 
 .voice-save-button:hover {
   background-color: #2563eb;
-}
-
-.record-more-button {
-  background-color: #f3f4f6;
-}
-
-.record-more-button:hover {
-  background-color: #e5e7eb;
 }
 
 /* Uploaded Recordings List */
@@ -750,12 +751,12 @@ audio {
   font-weight: 600;
   color: #6a6aff;
   background-color: #f0f0ff;
-  padding: 8px 12px;
+  padding: 0.5em 0.75em;
   border-radius: 8px;
   text-align: center;
   animation: pulseFade 1.5s ease-in-out infinite;
-  box-shadow: 0 0 6px rgba(106, 106, 255, 0.2);
-  margin-top: 10px;
+  box-shadow: 0 0 0.375rem rgba(106, 106, 255, 0.2);
+  margin-top: 0.625rem;
 }
 
 @keyframes pulseFade {
@@ -771,4 +772,19 @@ audio {
     opacity: 1;
     transform: scale(1);
   }
+}
+
+/* ------------------------------------------------- RECORDING LORAS --------------------------------------------- */
+/* Record more button */
+.record-more-button {
+  background-color: #d32f2f; /* bold red */
+  color: #fff; /* white text */
+  border-radius: 50px; /* pill shape */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.record-more-button:hover {
+  background-color: #b71c1c; /* darker red on hover */
+  transform: scale(1.05);
 }

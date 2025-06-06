@@ -10,27 +10,28 @@
   gap: 1.5rem;
   flex-wrap: nowrap;
   max-width: 100%;
+  font-size: clamp(0.9rem, 1.5vw, 1.2rem); /* scales font responsively */
 }
 
 .lora-info {
   display: flex;
   align-items: center;
-  gap: 1.25rem;
+  gap: clamp(0.8rem, 1vw, 1.25rem);
   flex: 1;
   min-width: 0;
 }
 
 .lora-profile-pic {
-  width: 3rem;
-  height: 3rem;
+  width: clamp(2.5rem, 4vw, 3rem);
+  height: clamp(2.5rem, 4vw, 3rem);
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
-  border: 1px solid #ccc;
+  border: 0.06rem solid #ccc;
 }
 
 .lora-name {
-  font-size: 1.2rem;
+  font-size: 1em; /* inherits from .lora-card */
   font-weight: 600;
   color: #222;
   white-space: nowrap;
@@ -42,15 +43,15 @@
 .lora-buttons {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  min-width: 9rem;
+  gap: clamp(0.5rem, 1vw, 0.75rem);
+  min-width: clamp(7rem, 15vw, 9rem);
   margin-right: 1rem;
 }
 
 .record-more-button,
 .generate-voice-button {
   width: 100%;
-  font-size: 0.95rem;
+  font-size: 0.95em; /* relative to .lora-card font-size */
   font-weight: 600;
   padding: 0.6em 1.2em;
   border: none;
@@ -96,8 +97,8 @@
 }
 
 .delete-button img {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: clamp(1rem, 2vw, 1.25rem);
+  height: clamp(1rem, 2vw, 1.25rem);
   filter: brightness(0) saturate(100%) invert(30%) sepia(100%) saturate(500%) hue-rotate(350deg);
   transition: filter 0.2s ease;
 }
@@ -119,6 +120,7 @@ button:focus-visible {
     flex-direction: column;
     align-items: stretch;
     gap: 1rem;
+    padding: 2vh 3vw;
   }
 
   .lora-info {
@@ -138,6 +140,7 @@ button:focus-visible {
   .generate-voice-button {
     flex: 1;
     width: auto;
+    font-size: 1em;
   }
 
   .delete-button {
@@ -147,9 +150,9 @@ button:focus-visible {
 }
 
 .spinner {
-  width: 24px;
-  height: 24px;
-  border: 4px solid #ccc;
+  width: clamp(1.2rem, 3vw, 1.5rem);
+  height: clamp(1.2rem, 3vw, 1.5rem);
+  border: 0.25rem solid #ccc;
   border-top-color: #333;
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -164,7 +167,7 @@ button:focus-visible {
 
 .error-message {
   color: red;
-  font-size: 0.85rem;
+  font-size: clamp(0.75rem, 1vw, 0.85rem);
   margin-top: 8px;
   text-align: center;
 }
