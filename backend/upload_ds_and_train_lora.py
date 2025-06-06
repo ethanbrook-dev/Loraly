@@ -266,35 +266,29 @@ def runpod_headers():
     }
 
 def add_created_lora_to_user(lora_id: str):
-    # 1. Get the creator_id for this lora_id from loras table
-    creator_resp = supabase.table(TABLE_LORAS).select(COL_CREATOR_ID).eq(COL_LORA_ID, lora_id).single().execute()
-    if creator_resp.error or not creator_resp.data:
-        print(f"⚠️ Error fetching creator_id for lora_id {lora_id}: {creator_resp.error}")
+    
+    try :
+        # 1. Get the creator_id for this lora_id from loras table
+        creator_resp = supabase.table(TABLE_LORAS).select(COL_CREATOR_ID).eq(COL_LORA_ID, lora_id).single().execute()
+        creator_id = creator_resp.data[COL_CREATOR_ID]
+
+        # 2. Fetch current loras_created array from profiles table for the creator
+        profile_resp = supabase.table(TABLE_PROFILES).select(COL_LORAS_CREATED).eq(COL_PROFILE_ID, creator_id).single().execute()
+
+        current_array = profile_resp.data.get(COL_LORAS_CREATED, []) or []
+
+        # 3. Append new lora_id if not already in the array (to avoid duplicates)
+        if lora_id not in current_array:
+            new_array = current_array + [lora_id]
+        else:
+            print(f"🗒️ LoRA {lora_id} already exists in user {creator_id}'s loras_created array.")
+            return
+
+        # 4. Update the profile with the new array
+        update_resp = supabase.table(TABLE_PROFILES).update({COL_LORAS_CREATED: new_array}).eq(COL_PROFILE_ID, creator_id).execute()
+    except Exception as e:
+        print(f"⚠️ Error adding LoRA {lora_id} to user profile: {e}")
         return
-
-    creator_id = creator_resp.data[COL_CREATOR_ID]
-
-    # 2. Fetch current loras_created array from profiles table for the creator
-    profile_resp = supabase.table(TABLE_PROFILES).select(COL_LORAS_CREATED).eq(COL_PROFILE_ID, creator_id).single().execute()
-    if profile_resp.error:
-        print(f"⚠️ Error fetching profile for user {creator_id}: {profile_resp.error}")
-        return
-
-    current_array = profile_resp.data.get(COL_LORAS_CREATED, []) or []
-
-    # 3. Append new lora_id if not already in the array (to avoid duplicates)
-    if lora_id not in current_array:
-        new_array = current_array + [lora_id]
-    else:
-        print(f"🗒️ LoRA {lora_id} already exists in user {creator_id}'s loras_created array.")
-        return
-
-    # 4. Update the profile with the new array
-    update_resp = supabase.table(TABLE_PROFILES).update({COL_LORAS_CREATED: new_array}).eq(COL_PROFILE_ID, creator_id).execute()
-    if update_resp.error:
-        print(f"⚠️ Error updating loras_created for user {creator_id}: {update_resp.error}")
-    else:
-        print(f"✅ LoRA {lora_id} added to user {creator_id}'s loras_created array.")
 
 def update_lora_status(lora_id: str, new_status: str):
     _ = supabase.table(TABLE_LORAS).update({COL_LORA_STATUS: new_status}).eq(COL_LORA_ID, lora_id).execute()

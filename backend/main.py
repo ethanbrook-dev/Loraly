@@ -15,6 +15,7 @@ app.add_middleware(
 
 @app.post("/generate-voice")
 async def generate_voice(request: Request, background_tasks: BackgroundTasks):
+    print("In backend")
     data = await request.json()
     
     lora_id = data.get("loraId")
@@ -45,8 +46,24 @@ async def delete_file_after_delay(file_path: str, delay_seconds: int):
         print(f"Error deleting temp file: {e}")
 
 def text_to_jsonl_string(raw_text: str) -> str:
-    # This regex splits at . or ? or ! while keeping the punctuation
-    sentences = re.findall(r'[^.?!]+[.?!]', raw_text)
+    # 🛠️ Fixes:
+    # - Replaces smart quotes like ’ and “ ” with normal ASCII ' and " to avoid UnicodeDecodeError ❌
+    # - Splits raw text into sentences using punctuation (. ? !) while keeping the punctuation 🧠
+    # - Keeps standard apostrophes like ' (e.g., "it's") ✅
+    
+    # Normalize curly quotes to ASCII to prevent decoding issues
+    cleaned_text = (
+        raw_text.replace("’", "'")
+                .replace("‘", "'")
+                .replace("“", '"')
+                .replace("”", '"')
+    )
+
+    # Split into sentences using punctuation while keeping punctuation
+    sentences = re.findall(r'[^.?!]+[.?!]', cleaned_text)
     sentences = [s.strip() for s in sentences if s.strip()]
+    
+    # Convert each sentence to JSONL format
     lines = [json.dumps({"text": sentence}, ensure_ascii=False) for sentence in sentences]
     return "\n".join(lines)
+
