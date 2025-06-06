@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 export default function TrainingStartedPage() {
   const router = useRouter();
 
-  const x = 5; // Set the number of seconds to wait before redirecting
+  const x = 15; // Set the number of seconds to wait before redirecting
 
   // Redirect back to dashboard after x seconds
   useEffect(() => {

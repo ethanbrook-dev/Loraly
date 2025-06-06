@@ -744,3 +744,31 @@ audio {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+.generating-voice-text {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #6a6aff;
+  background-color: #f0f0ff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  text-align: center;
+  animation: pulseFade 1.5s ease-in-out infinite;
+  box-shadow: 0 0 6px rgba(106, 106, 255, 0.2);
+  margin-top: 10px;
+}
+
+@keyframes pulseFade {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

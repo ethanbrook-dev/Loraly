@@ -1,1 +1,1 @@
-export const MIN_WORDS_FOR_LORA_GEN = 24;
+export const MIN_WORDS_FOR_LORA_GEN = 100; // Minimum number of words required to create useful model - if less, then the model won't be created by the docker image

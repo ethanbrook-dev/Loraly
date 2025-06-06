@@ -16,7 +16,7 @@ TABLE_LORAS = "loras"
 TABLE_PROFILES = "profiles"
 
 # Column names in 'loras' table
-COL_LORA_ID = "lora_id"
+COL_LORA_ID = "id"
 COL_LORA_STATUS = "training_status"
 COL_CREATOR_ID = "creator_id"
 
@@ -297,7 +297,5 @@ def add_created_lora_to_user(lora_id: str):
         print(f"✅ LoRA {lora_id} added to user {creator_id}'s loras_created array.")
 
 def update_lora_status(lora_id: str, new_status: str):
-    resp = supabase.table(TABLE_LORAS).update({COL_LORA_STATUS: new_status}).eq(COL_LORA_ID, lora_id).execute()
-    if resp.error:
-        print(f"⚠️ Failed to update LoRA status for {lora_id}: {resp.error}")
+    _ = supabase.table(TABLE_LORAS).update({COL_LORA_STATUS: new_status}).eq(COL_LORA_ID, lora_id).execute()
 

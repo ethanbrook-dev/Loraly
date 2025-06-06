@@ -234,6 +234,9 @@ export default function CreatorDashboard() {
                   <div className="lora-buttons">
                     {isTraining || isTrainingCompleted ? (
                       <>
+                        {isTraining && (
+                          <p className="generating-voice-text">Generating Voice ...</p>
+                        )}
                         {isTrainingCompleted && (
                           <button
                             className="share-button"
@@ -284,17 +287,17 @@ export default function CreatorDashboard() {
                     )}
                   </div>
 
-                  <button
-                    className="delete-button"
-                    onClick={() => {
-                      if (isTraining || isTrainingCompleted) return; // 🔒 disable delete
-                      handleDeleteLora(lora);
-                    }}
-                    title="Delete Voice"
-                    disabled={isTraining || isTrainingCompleted} // also disable click visually
-                  >
-                    <img src="/delete-icon.svg" alt="Delete" />
-                  </button>
+                  {!(isTraining || isTrainingCompleted) && (
+                    <button
+                      className="delete-button"
+                      onClick={() => {
+                        handleDeleteLora(lora);
+                      }}
+                      title="Delete Voice"
+                    >
+                      <img src="/delete-icon.svg" alt="Delete" />
+                    </button>
+                  )}
                 </div>
               );
             })}
