@@ -22,3 +22,59 @@
   background-color: #4338ca; /* darker Indigo on hover */
   transform: scale(1.05);
 }
+
+.share-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* center vertically */
+  align-items: center;
+  padding: 0 5vw;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #222;
+  text-align: center;
+}
+
+.share-title {
+  font-size: clamp(1.5rem, 4vw, 2.2rem);
+  font-weight: 600;
+  margin-bottom: 2.5vh;
+  color: #1e40af;
+}
+
+.share-search-input {
+  width: 100%;
+  max-width: 400px;
+  padding: 0.75em 1em;
+  font-size: 1rem;
+  border: 0.125em solid #cbd5e1;
+  border-radius: 0.5em;
+  outline-offset: 0.2em;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  margin-bottom: 3vh;
+  box-sizing: border-box;
+}
+
+.share-search-input:focus {
+  border-color: #4f46e5;
+  outline: none;
+  box-shadow: 0 0 0 0.25em rgba(79, 70, 229, 0.3);
+}
+
+.share-back-button {
+  padding: 0.8em 1.2em;
+  background-color: #4f46e5;
+  color: white;
+  font-weight: 600;
+  font-size: 1rem;
+  border: none;
+  border-radius: 0.5em;
+  cursor: pointer;
+  width: 100%;
+  max-width: 240px;
+  transition: background-color 0.3s ease;
+}
+
+.share-back-button:hover {
+  background-color: #4338ca;
+}
