@@ -21,6 +21,7 @@ const LORAS_TABLE_CREATOR_COL = 'creator_id';
 const LORAS_TABLE_PROFILE_PIC_COL = 'profile_pic_url';
 const LORAS_TABLE_STATUS_COL = 'training_status'; //status is updated in backend
 const LORA_PROFILE_PIC_BUCKET_NAME = 'lora-profile-pics';
+const SHARED_LORA_PIC_BUCKET = 'shared-lora-pics';
 
 type AudioFile = {
     name: string;
@@ -35,6 +36,11 @@ type Lora = {
     profile_pic_url: string | null;
     audio_files: AudioFile[];
     training_status: string;
+};
+
+type SharedLora = {
+    id: string;
+    shared_pic_url: string;
 };
 
 type Recording = {
@@ -156,28 +162,72 @@ export async function fetchMatchingUsersBySimilarName(
 
 export async function getAllLorasSharedWithUser(
     user: ShareRecipient
-): Promise<string[] | null> {
+): Promise<SharedLora[] | null> {
     const { data, error } = await supabase
         .from(USER_TABLE_NAME)
         .select(USER_TABLE_LORAS_SHARED_WITH_COL)
         .eq(USER_TABLE_ID_COL, user.id)
         .single();
-    
+
     if (error || !data) return null;
-    
-    return data.loras_shared_w_me;
+    return data.loras_shared_w_me || [];
 }
 
+// Replace the previous version of this function
 export async function updateLorasSharedWithUser(
-    userId: string, 
-    updatedLoras: string[]
+    userId: string,
+    updatedLoras: SharedLora[]
 ): Promise<boolean> {
-  const { error } = await supabase
-    .from(USER_TABLE_NAME)
-    .update({ [USER_TABLE_LORAS_SHARED_WITH_COL]: updatedLoras })
-    .eq(USER_TABLE_ID_COL, userId);
+    const { error } = await supabase
+        .from(USER_TABLE_NAME)
+        .update({ [USER_TABLE_LORAS_SHARED_WITH_COL]: updatedLoras })
+        .eq(USER_TABLE_ID_COL, userId);
 
-  return !error
+    return !error;
+}
+
+export async function copyLORAProfilePicToSharedBucket(
+    sourcePath: string,
+    targetPath: string
+): Promise<boolean> {
+    // Download file from source bucket
+    const { data: downloadedFile, error: downloadError } = await supabase.storage
+        .from(LORA_PROFILE_PIC_BUCKET_NAME)
+        .download(sourcePath);
+
+    if (downloadError || !downloadedFile) {
+        console.error('Failed to download file from source bucket:', downloadError);
+        return false;
+    }
+
+    // Upload file to shared bucket
+    const { error: uploadError } = await supabase.storage
+        .from(SHARED_LORA_PIC_BUCKET)
+        .upload(targetPath, downloadedFile);
+
+    if (uploadError) {
+        console.error('Failed to upload file to shared bucket:', uploadError);
+        return false;
+    }
+
+    return true;
+}
+
+export async function generateSharedLORAPicSignedUrl(
+    path: string,
+    expiresInSeconds = 60
+): Promise<string | null> {
+    const { data, error } = await supabase
+        .storage
+        .from(SHARED_LORA_PIC_BUCKET)
+        .createSignedUrl(path, expiresInSeconds);
+
+    if (error || !data?.signedUrl) {
+        console.error('Error creating signed URL for shared pic:', error);
+        return null;
+    }
+
+    return data.signedUrl;
 }
 
 export async function getLORAProfilePicUrl(

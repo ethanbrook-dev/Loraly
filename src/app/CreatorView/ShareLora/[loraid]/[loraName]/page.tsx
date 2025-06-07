@@ -7,7 +7,10 @@ import {
   generateUSERProfilePicSignedUrl,
   fetchMatchingUsersBySimilarName,
   getAllLorasSharedWithUser,
-  updateLorasSharedWithUser
+  updateLorasSharedWithUser,
+  getLORAProfilePicUrl,
+  copyLORAProfilePicToSharedBucket,
+  generateSharedLORAPicSignedUrl
 } from '../../../../components/db_funcs/db_funcs';
 
 type ShareRecipient = {
@@ -65,24 +68,50 @@ export default function ShareLoraPage() {
   }
 
   async function handleShare(user: ShareRecipient) {
-    setShareStatus(null); // clear previous status
+    setShareStatus(null);
 
-    const loras_shared_w_me = await getAllLorasSharedWithUser(user);
-
-    if (loras_shared_w_me == null) {
+    const sharedLoras = await getAllLorasSharedWithUser(user);
+    if (sharedLoras === null) {
       setShareStatus('Failed to fetch user data.');
       return;
     }
 
-    if (loras_shared_w_me.includes(loraid as string)) {
+    if (sharedLoras.some((l) => l.id === loraid)) {
       setShareStatus(`${loraName} was already shared with ${user.username}`);
       return;
     }
 
-    const updatedLoras = [...loras_shared_w_me, loraid as string];
+    const picPath = await getLORAProfilePicUrl(loraid as string);
+    let copiedPath = '';
+    let signedUrl = '';
 
-    const updateSuccessfull = await updateLorasSharedWithUser(user.id, updatedLoras);
-    if (!updateSuccessfull) {
+    if (picPath) {
+      const fileExt = picPath.split('.').pop() || 'png';
+      copiedPath = `${user.id}/${loraid}.${fileExt}`;
+
+      const copied = await copyLORAProfilePicToSharedBucket(picPath, copiedPath);
+      if (!copied) {
+        setShareStatus('Failed to copy profile picture.');
+        return;
+      }
+
+      const url = await generateSharedLORAPicSignedUrl(copiedPath);
+      if (!url) {
+        setShareStatus('Failed to generate signed URL.');
+        return;
+      }
+
+      signedUrl = url;
+    }
+
+    const updatedLoras = [...sharedLoras, {
+      id: loraid as string,
+      shared_pic_url: copiedPath
+    }];
+
+    const success = await updateLorasSharedWithUser(user.id, updatedLoras);
+
+    if (!success) {
       setShareStatus('Failed to share. Try again.');
       return;
     }
