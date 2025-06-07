@@ -114,3 +114,10 @@
   border-radius: 50%;
   object-fit: cover;
 }
+
+.share-status-message {
+  margin-top: 12px;
+  text-align: center;
+  font-style: italic;
+  color: #555;
+}

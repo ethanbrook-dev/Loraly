@@ -5,11 +5,12 @@ import { useEffect, useState } from 'react';
 
 import {
   generateUSERProfilePicSignedUrl,
-  fetchMatchingUsersBySimilarName
+  fetchMatchingUsersBySimilarName,
+  getAllLorasSharedWithUser,
+  updateLorasSharedWithUser
 } from '../../../../components/db_funcs/db_funcs';
-import { supabase } from '../../../../../../supabase/client';
 
-type SearchUser = {
+type ShareRecipient = {
   id: string;
   username: string;
   profile_pic_url: string | null;
@@ -21,8 +22,9 @@ export default function ShareLoraPage() {
   const { loraid, loraName } = params;
 
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchUser[]>([]);
+  const [results, setResults] = useState<ShareRecipient[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [shareStatus, setShareStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (query.trim() === '') {
@@ -32,6 +34,13 @@ export default function ShareLoraPage() {
 
     fetchMatchingUsers(query);
   }, [query]);
+
+  useEffect(() => {
+    if (shareStatus) {
+      const timeout = setTimeout(() => setShareStatus(null), 3000);
+      return () => clearTimeout(timeout);
+    }
+  }, [shareStatus]);
 
   async function fetchMatchingUsers(search: string) {
     setIsSearching(true);
@@ -55,9 +64,30 @@ export default function ShareLoraPage() {
     setIsSearching(false);
   }
 
-  function handleShare(user: SearchUser) {
-    console.log("user clicked with details as follows:\nname: " + user.username + "\nid: " + user.id + "\n\nand the lora we want to share with him is:\nloraName: " + loraName + "\nloraid: " + loraid)
-    
+  async function handleShare(user: ShareRecipient) {
+    setShareStatus(null); // clear previous status
+
+    const loras_shared_w_me = await getAllLorasSharedWithUser(user);
+
+    if (loras_shared_w_me == null) {
+      setShareStatus('Failed to fetch user data.');
+      return;
+    }
+
+    if (loras_shared_w_me.includes(loraid as string)) {
+      setShareStatus(`${loraName} was already shared with ${user.username}`);
+      return;
+    }
+
+    const updatedLoras = [...loras_shared_w_me, loraid as string];
+
+    const updateSuccessfull = await updateLorasSharedWithUser(user.id, updatedLoras);
+    if (!updateSuccessfull) {
+      setShareStatus('Failed to share. Try again.');
+      return;
+    }
+
+    setShareStatus(`${loraName} was successfully shared with ${user.username}!`);
   }
 
   return (
@@ -71,7 +101,11 @@ export default function ShareLoraPage() {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
-
+      {shareStatus && (
+        <div className="share-status-message">
+          {shareStatus}
+        </div>
+      )}
       {query.trim() !== '' && (
         <div className="search-results">
           {results.map((user) => (

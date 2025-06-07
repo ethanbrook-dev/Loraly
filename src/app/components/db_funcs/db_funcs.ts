@@ -11,7 +11,6 @@ const USER_SHARING_INFO_SELECT = [
     USER_TABLE_ID_COL,
     USER_TABLE_NAME_COL,
     USER_TABLE_PROFILE_PIC_COL,
-    USER_TABLE_LORAS_SHARED_WITH_COL,
 ].join(', ');
 const USER_PROFILE_PIC_BUCKET_NAME = 'avatars';
 
@@ -54,7 +53,6 @@ type ShareRecipient = {
     id: string;
     username: string;
     profile_pic_url: string | null;
-    loras_shared_w_me: string[] | null;
 };
 
 function toShareRecipient(user: any): ShareRecipient {
@@ -62,7 +60,6 @@ function toShareRecipient(user: any): ShareRecipient {
         id: user[USER_TABLE_ID_COL],
         username: user[USER_TABLE_NAME_COL],
         profile_pic_url: user[USER_TABLE_PROFILE_PIC_COL],
-        loras_shared_w_me: user[USER_TABLE_LORAS_SHARED_WITH_COL],
     };
 }
 
@@ -155,6 +152,32 @@ export async function fetchMatchingUsersBySimilarName(
     }
 
     return data.map(toShareRecipient);
+}
+
+export async function getAllLorasSharedWithUser(
+    user: ShareRecipient
+): Promise<string[] | null> {
+    const { data, error } = await supabase
+        .from(USER_TABLE_NAME)
+        .select(USER_TABLE_LORAS_SHARED_WITH_COL)
+        .eq(USER_TABLE_ID_COL, user.id)
+        .single();
+    
+    if (error || !data) return null;
+    
+    return data.loras_shared_w_me;
+}
+
+export async function updateLorasSharedWithUser(
+    userId: string, 
+    updatedLoras: string[]
+): Promise<boolean> {
+  const { error } = await supabase
+    .from(USER_TABLE_NAME)
+    .update({ [USER_TABLE_LORAS_SHARED_WITH_COL]: updatedLoras })
+    .eq(USER_TABLE_ID_COL, userId);
+
+  return !error
 }
 
 export async function getLORAProfilePicUrl(
