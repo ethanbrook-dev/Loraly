@@ -97,14 +97,14 @@ export default function ExplorerDashboard() {
                 <div className="lora-card-buttons">
                   <button
                     className="chat-button"
-                    onClick={() => router.push(`/ExplorerView/Chat/${lora.id}`)}
+                    onClick={() => router.push(`../../../ExplorerView/ChatInterface/${lora.id}`)}
                   >
                     Chat
                   </button>
 
                   <button
                     className="delete-button"
-                    onClick={() => alert(`Delete ${lora.id}`)}
+                    onClick={() => alert(`Delete ${lora.id} --- PLACEHOLDER ---`)}
                   >
                     Delete
                   </button>
