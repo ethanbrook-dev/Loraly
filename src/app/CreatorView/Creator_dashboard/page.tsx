@@ -44,6 +44,7 @@ type Lora = {
 
 type SharedLora = {
   id: string,
+  name: string,
   shared_pic_url: string
 }
 
@@ -293,8 +294,7 @@ export default function CreatorDashboard() {
                     )}
                   </div>
 
-                  {!(isTraining || isTrainingCompleted) && (
-                    <button
+                  <button
                       className="delete-button"
                       onClick={() => {
                         handleDeleteLora(lora);
@@ -303,7 +303,6 @@ export default function CreatorDashboard() {
                     >
                       <img src="/delete-icon.svg" alt="Delete" />
                     </button>
-                  )}
                 </div>
               );
             })}

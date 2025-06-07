@@ -40,6 +40,7 @@ type Lora = {
 
 type SharedLora = {
     id: string;
+    name: string,
     shared_pic_url: string;
 };
 
@@ -173,7 +174,6 @@ export async function getAllLorasSharedWithUser(
     return data.loras_shared_w_me || [];
 }
 
-// Replace the previous version of this function
 export async function updateLorasSharedWithUser(
     userId: string,
     updatedLoras: SharedLora[]
@@ -213,7 +213,7 @@ export async function copyLORAProfilePicToSharedBucket(
     return true;
 }
 
-export async function generateSharedLORAPicSignedUrl(
+export async function generateSharedLORAProfilePicSignedUrl(
     path: string,
     expiresInSeconds = 60
 ): Promise<string | null> {

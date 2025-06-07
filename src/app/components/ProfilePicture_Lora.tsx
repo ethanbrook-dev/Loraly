@@ -84,7 +84,7 @@ export default function ProfilePicture_lora({ loraId, currentProfilePicPath, onU
         style={{ position: 'relative', cursor: 'pointer' }}
       >
         {imageUrl ? (
-          <img src={imageUrl} alt="LoRA Profile" className="profile-pic-image" />
+          <img src={imageUrl} alt="Voice Profile" className="profile-pic-image" />
         ) : (
           <span style={{ fontSize: '2rem', lineHeight: 1 }}>+</span>
         )}

@@ -1,1 +1,127 @@
-/* explorer view css */
+/* Container for whole Explorer Dashboard */
+.explorer-dashboard-container {
+  max-width: 900px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+    Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+  color: #222;
+}
+
+/* User header (you probably have this in UserHeader, but just in case) */
+.user-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #ddd;
+}
+
+/* Container holding shared LoRA cards */
+.shared-loras-container {
+  margin-top: 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: center;
+}
+
+/* Text when no LoRAs are shared */
+.no-loras-text {
+  font-size: 1.25rem;
+  text-align: center;
+  color: #555;
+  padding: 2rem 1rem;
+}
+
+/* Single LoRA card */
+.lora-card {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.1);
+  width: 250px;
+  padding: 1rem;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  transition: box-shadow 0.2s ease-in-out;
+  cursor: default;
+}
+
+.lora-card:hover {
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+}
+
+/* LoRA profile pic */
+.lora-profile-pic {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #0070f3; /* accent color */
+  flex-shrink: 0;
+}
+
+/* Container for LoRA text and buttons */
+.lora-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* LoRA name */
+.lora-name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+  color: #111;
+}
+
+/* Container for chat and delete buttons */
+.lora-card-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Chat button style */
+.chat-button {
+  background-color: #0070f3;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 0.4rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out;
+  flex-grow: 1;
+}
+
+.chat-button:hover {
+  background-color: #005bb5;
+}
+
+/* Delete button style */
+.delete-button {
+  background-color: #e00;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 0.4rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out;
+  flex-grow: 1;
+}
+
+.delete-button:hover {
+  background-color: #a00;
+}
+
+/* Responsive for smaller screens */
+@media (max-width: 600px) {
+  .lora-card {
+    width: 100%;
+  }
+}

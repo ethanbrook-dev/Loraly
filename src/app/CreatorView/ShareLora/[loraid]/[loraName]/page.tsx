@@ -10,7 +10,7 @@ import {
   updateLorasSharedWithUser,
   getLORAProfilePicUrl,
   copyLORAProfilePicToSharedBucket,
-  generateSharedLORAPicSignedUrl
+  generateSharedLORAProfilePicSignedUrl
 } from '../../../../components/db_funcs/db_funcs';
 
 type ShareRecipient = {
@@ -95,7 +95,7 @@ export default function ShareLoraPage() {
         return;
       }
 
-      const url = await generateSharedLORAPicSignedUrl(copiedPath);
+      const url = await generateSharedLORAProfilePicSignedUrl(copiedPath);
       if (!url) {
         setShareStatus('Failed to generate signed URL.');
         return;
@@ -106,6 +106,7 @@ export default function ShareLoraPage() {
 
     const updatedLoras = [...sharedLoras, {
       id: loraid as string,
+      name: loraName as string,
       shared_pic_url: copiedPath
     }];
 
