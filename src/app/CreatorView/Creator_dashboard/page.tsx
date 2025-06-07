@@ -42,13 +42,18 @@ type Lora = {
   training_status: string;
 };
 
+type SharedLora = {
+  id: string,
+  shared_pic_url: string
+}
+
 type UserProfile = {
   id: string;
   username: string;
   email: string | null;
   profile_pic_url: string | null;
-  loras_created: Lora[];
-  loras_shared_w_me: Lora[];
+  loras_created: string[];
+  loras_shared_w_me: SharedLora[];
 }
 
 export default function CreatorDashboard() {
