@@ -1,4 +1,4 @@
-/* Container for whole Explorer Dashboard */
+/* REMEMBER TO RESOLVE THE SCALING ISSUE */
 .explorer-dashboard-container {
   max-width: 900px;
   margin: 2rem auto;
@@ -8,7 +8,6 @@
   color: #222;
 }
 
-/* User header (you probably have this in UserHeader, but just in case) */
 .user-header {
   display: flex;
   align-items: center;
