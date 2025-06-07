@@ -4,7 +4,15 @@ import type { User } from '@supabase/supabase-js';
 // USER variables:
 const USER_TABLE_NAME = 'profiles';
 const USER_TABLE_ID_COL = 'id';
+const USER_TABLE_NAME_COL = 'username';
 const USER_TABLE_PROFILE_PIC_COL = 'profile_pic_url';
+const USER_TABLE_LORAS_SHARED_WITH_COL = 'loras_shared_w_me';
+const USER_SHARING_INFO_SELECT = [
+    USER_TABLE_ID_COL,
+    USER_TABLE_NAME_COL,
+    USER_TABLE_PROFILE_PIC_COL,
+    USER_TABLE_LORAS_SHARED_WITH_COL,
+].join(', ');
 const USER_PROFILE_PIC_BUCKET_NAME = 'avatars';
 
 // LORA variables:
@@ -12,7 +20,7 @@ const LORAS_TABLE_NAME = 'loras';
 const LORAS_TABLE_ID_COL = 'id';
 const LORAS_TABLE_CREATOR_COL = 'creator_id';
 const LORAS_TABLE_PROFILE_PIC_COL = 'profile_pic_url';
-const LORAS_TABLE_STATUS_COL = 'training_status';
+const LORAS_TABLE_STATUS_COL = 'training_status'; //status is updated in backend
 const LORA_PROFILE_PIC_BUCKET_NAME = 'lora-profile-pics';
 
 type AudioFile = {
@@ -41,6 +49,22 @@ type VoiceData = {
     creator_id: string;
     recordings: Recording[];
 };
+
+type ShareRecipient = {
+    id: string;
+    username: string;
+    profile_pic_url: string | null;
+    loras_shared_w_me: string[] | null;
+};
+
+function toShareRecipient(user: any): ShareRecipient {
+    return {
+        id: user[USER_TABLE_ID_COL],
+        username: user[USER_TABLE_NAME_COL],
+        profile_pic_url: user[USER_TABLE_PROFILE_PIC_COL],
+        loras_shared_w_me: user[USER_TABLE_LORAS_SHARED_WITH_COL],
+    };
+}
 
 export async function getAuthenticatedUser(): Promise<User | null> {
     const { data: { user }, error } = await supabase.auth.getUser();
@@ -115,6 +139,22 @@ export async function uploadToUSERProfilePics(
     }
 
     return true;
+}
+
+export async function fetchMatchingUsersBySimilarName(
+    name: string
+): Promise<ShareRecipient[]> {
+    const { data, error } = await supabase
+        .from(USER_TABLE_NAME)
+        .select(USER_SHARING_INFO_SELECT)
+        .ilike(USER_TABLE_NAME_COL, `${name}%`);
+
+    if (error || !data) {
+        console.error('Error fetching users:', error);
+        return [];
+    }
+
+    return data.map(toShareRecipient);
 }
 
 export async function getLORAProfilePicUrl(
