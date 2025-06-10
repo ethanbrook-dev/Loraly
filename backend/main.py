@@ -1,7 +1,10 @@
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 import json, tempfile, re, os, asyncio
+
+# python helper file imports
 from backend.upload_ds_and_train_lora import upload_ds_and_train_lora
+from backend.chat import chat_with_lora
 
 app = FastAPI()
 
@@ -13,9 +16,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ------------------------------------------------- GENERATING VOICE API ------------------------------------------------- #
 @app.post("/generate-voice")
 async def generate_voice(request: Request, background_tasks: BackgroundTasks):
-    print("In backend")
+    print("In the backend ... training voice ...")
     data = await request.json()
     
     lora_id = data.get("loraId")
@@ -67,3 +71,21 @@ def text_to_jsonl_string(raw_text: str) -> str:
     lines = [json.dumps({"text": sentence}, ensure_ascii=False) for sentence in sentences]
     return "\n".join(lines)
 
+# ------------------------------------------------- CHATTING API ------------------------------------------------- #
+@app.post("/chat")
+async def chat(request: Request):
+    print("📥 Chat endpoint called")
+
+    data = await request.json()
+    loraid = data.get("loraid")
+    prompt = data.get("prompt")
+
+    if not loraid or not prompt:
+        return { "error": "Missing loraid or prompt" }
+
+    try:
+        response = chat_with_lora(loraid, prompt)
+        return { "response": response }
+    except Exception as e:
+        print(f"❌ Error in chat_with_lora: {e}")
+        return { "error": str(e) }
