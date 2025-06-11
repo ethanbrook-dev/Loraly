@@ -1,10 +1,14 @@
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-import json, tempfile, re, os, asyncio
+from fastapi.responses import JSONResponse
 
-# python helper file imports
+# For training:
+import json, tempfile, re, os, asyncio
 from backend.upload_ds_and_train_lora import upload_ds_and_train_lora
-from backend.chat import chat_with_lora
+
+# For chatting:
+from contextlib import asynccontextmanager
+import modal
 
 app = FastAPI()
 
@@ -15,6 +19,43 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ------------------------------------------------- CHATTING API ------------------------------------------------- #
+
+stub = modal.Stub("mistral-lora-chat")  # Must match your Modal app name
+
+chat_worker = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global chat_worker
+    print("🔌 Connecting to Modal chat worker...")
+    chat_worker = stub.MistralChat()  # ✅ This creates a remote Modal worker client proxy
+    yield
+    # If any cleanup needed on shutdown, add here
+    print("👋 Shutting down chat worker...")
+
+app.router.lifespan_context = lifespan
+
+# Example route using chat_worker
+@app.post("/chat")
+async def chat(request: Request) -> JSONResponse:
+    data = await request.json()
+    loraid = data.get("loraid")
+    prompt = data.get("prompt")
+
+    if not loraid or not prompt:
+        return {"error": "Missing loraid or prompt"}
+    
+    print("In backend ... got data...")
+
+    try:
+        response = await chat_worker.chat_with_lora.async_call(loraid, prompt)
+        print(f"The response is = {response}")
+        return {"response": response}
+    except Exception as e:
+        print("❌❌❌❌❌ ERROR GETTING RESPONSE FROM MODEL")
+        return {"error": str(e)}
 
 # ------------------------------------------------- GENERATING VOICE API ------------------------------------------------- #
 @app.post("/generate-voice")
@@ -71,21 +112,3 @@ def text_to_jsonl_string(raw_text: str) -> str:
     lines = [json.dumps({"text": sentence}, ensure_ascii=False) for sentence in sentences]
     return "\n".join(lines)
 
-# ------------------------------------------------- CHATTING API ------------------------------------------------- #
-@app.post("/chat")
-async def chat(request: Request):
-    print("📥 Chat endpoint called")
-
-    data = await request.json()
-    loraid = data.get("loraid")
-    prompt = data.get("prompt")
-
-    if not loraid or not prompt:
-        return { "error": "Missing loraid or prompt" }
-
-    try:
-        response = chat_with_lora(loraid, prompt)
-        return { "response": response }
-    except Exception as e:
-        print(f"❌ Error in chat_with_lora: {e}")
-        return { "error": str(e) }

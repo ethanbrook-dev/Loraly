@@ -37,7 +37,9 @@ export default function ChatInterfacePage() {
             }),
         });
 
+        console.log("Response status:", response.status); // e.g. 500
         const data = await response.json();
+        console.log("Response data:", data);
 
         if (response.ok && data?.response) {
             setChatHistory(prev => [...prev, { sender: loraName, message: data.response }]);
