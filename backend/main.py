@@ -22,7 +22,7 @@ app.add_middleware(
 
 # ------------------------------------------------- CHATTING API ------------------------------------------------- #
 
-stub = modal.Stub("mistral-lora-chat")  # Must match your Modal app name
+model_app = modal.App("mistral-lora-chat")
 
 chat_worker = None
 
@@ -30,7 +30,7 @@ chat_worker = None
 async def lifespan(app: FastAPI):
     global chat_worker
     print("🔌 Connecting to Modal chat worker...")
-    chat_worker = stub.MistralChat()  # ✅ This creates a remote Modal worker client proxy
+    chat_worker = model_app.MistralChat()  # ✅ This creates a remote Modal worker client proxy
     yield
     # If any cleanup needed on shutdown, add here
     print("👋 Shutting down chat worker...")
