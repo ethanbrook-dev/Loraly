@@ -3,8 +3,6 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import PeftModel
 import torch
 
-from vars import getHFToken, getHFUsername
-
 app = modal.App("mistral-lora-chat")
 
 image = (
@@ -34,11 +32,11 @@ class MistralChat:
     @modal.method()
     def chat_with_lora(self, lora_id: str, prompt: str) -> str:
         
-        model_repo_id = f"{getHFUsername()}/{lora_id}-model" # DO NOT CHANGE THIS -> the docker image will create this repo
+        model_repo_id = f"{UUUUUUUUUUU}/{lora_id}-model" # DO NOT CHANGE THIS -> the docker image will create this repo
         
         if lora_id not in self.loaded_loras:
             print(f"⚡ Loading LoRA: {lora_id} with modelID: {model_repo_id}")
-            lora_model = PeftModel.from_pretrained(self.base_model, model_repo_id, token=getHFToken())
+            lora_model = PeftModel.from_pretrained(self.base_model, model_repo_id, token=UUUUUUUUUUUUU)
             self.loaded_loras[lora_id] = lora_model
         else:
             lora_model = self.loaded_loras[lora_id]
