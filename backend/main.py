@@ -14,15 +14,15 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # "http://localhost:3000"
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # ------------------------------------------------- CHATTING API ------------------------------------------------- #
-
-model_app = modal.App("mistral-lora-chat")
+# 🔁 Correct way to hydrate class from deployed Modal App
+MistralChatCls = modal.Cls.from_name("mistral-lora-chat", "MistralChat")
 
 chat_worker = None
 
@@ -30,14 +30,13 @@ chat_worker = None
 async def lifespan(app: FastAPI):
     global chat_worker
     print("🔌 Connecting to Modal chat worker...")
-    chat_worker = model_app.MistralChat()  # ✅ This creates a remote Modal worker client proxy
+    chat_worker = MistralChatCls()  # This is the worker instance (proxy)
+    print(f"✔️  Connected to Modal chat worker: {chat_worker}")
     yield
-    # If any cleanup needed on shutdown, add here
     print("👋 Shutting down chat worker...")
 
 app.router.lifespan_context = lifespan
 
-# Example route using chat_worker
 @app.post("/chat")
 async def chat(request: Request) -> JSONResponse:
     data = await request.json()
@@ -45,24 +44,22 @@ async def chat(request: Request) -> JSONResponse:
     prompt = data.get("prompt")
 
     if not loraid or not prompt:
-        return {"error": "Missing loraid or prompt"}
-    
-    print("In backend ... got data...")
+        return JSONResponse({"error": "Missing loraid or prompt"}, status_code=400)
 
     try:
-        response = await chat_worker.chat_with_lora.async_call(loraid, prompt)
-        print(f"The response is = {response}")
+        response = await chat_worker.chat_with_lora.remote(loraid, prompt)
+        print(f"✅ Response: {response}")
         return {"response": response}
     except Exception as e:
-        print("❌❌❌❌❌ ERROR GETTING RESPONSE FROM MODEL")
-        return {"error": str(e)}
+        print("❌ ERROR GETTING RESPONSE")
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 # ------------------------------------------------- GENERATING VOICE API ------------------------------------------------- #
 @app.post("/generate-voice")
 async def generate_voice(request: Request, background_tasks: BackgroundTasks):
-    print("In the backend ... training voice ...")
+    print("🧠 In the backend ... training voice ...")
     data = await request.json()
-    
+
     lora_id = data.get("loraId")
     text = data.get("rawText")
 
@@ -72,7 +69,7 @@ async def generate_voice(request: Request, background_tasks: BackgroundTasks):
         temp_file_path = temp_file.name
         temp_file.write(jsonl_str)
         temp_file.flush()
-        
+
     background_tasks.add_task(upload_ds_and_train_lora, lora_id, temp_file_path)
     background_tasks.add_task(delete_file_after_delay, temp_file_path, 10)
 
@@ -86,29 +83,19 @@ async def delete_file_after_delay(file_path: str, delay_seconds: int):
     try:
         if os.path.exists(file_path):
             os.remove(file_path)
-            print(f"Temp file deleted: {file_path}")
+            print(f"🧹 Temp file deleted: {file_path}")
     except Exception as e:
-        print(f"Error deleting temp file: {e}")
+        print(f"⚠️ Error deleting temp file: {e}")
 
 def text_to_jsonl_string(raw_text: str) -> str:
-    # 🛠️ Fixes:
-    # - Replaces smart quotes like ’ and “ ” with normal ASCII ' and " to avoid UnicodeDecodeError ❌
-    # - Splits raw text into sentences using punctuation (. ? !) while keeping the punctuation 🧠
-    # - Keeps standard apostrophes like ' (e.g., "it's") ✅
-    
-    # Normalize curly quotes to ASCII to prevent decoding issues
     cleaned_text = (
         raw_text.replace("’", "'")
                 .replace("‘", "'")
                 .replace("“", '"')
                 .replace("”", '"')
     )
-
-    # Split into sentences using punctuation while keeping punctuation
     sentences = re.findall(r'[^.?!]+[.?!]', cleaned_text)
     sentences = [s.strip() for s in sentences if s.strip()]
-    
-    # Convert each sentence to JSONL format
     lines = [json.dumps({"text": sentence}, ensure_ascii=False) for sentence in sentences]
     return "\n".join(lines)
 

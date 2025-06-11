@@ -1,13 +1,9 @@
-import os
-from dotenv import load_dotenv
 import modal
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import PeftModel
 import torch
 
-env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env.local'))
-load_dotenv(dotenv_path=env_path)
-HF_TOKEN = os.getenv("HF_TOKEN")
+from vars import getHFToken, getHFUsername
 
 app = modal.App("mistral-lora-chat")
 
@@ -38,11 +34,11 @@ class MistralChat:
     @modal.method()
     def chat_with_lora(self, lora_id: str, prompt: str) -> str:
         
-        model_repo_id = f"{os.getenv('HF_USERNAME')}/{lora_id}-model" # DO NOT CHANGE THIS -> the docker image will create this repo
+        model_repo_id = f"{getHFUsername()}/{lora_id}-model" # DO NOT CHANGE THIS -> the docker image will create this repo
         
         if lora_id not in self.loaded_loras:
             print(f"⚡ Loading LoRA: {lora_id} with modelID: {model_repo_id}")
-            lora_model = PeftModel.from_pretrained(self.base_model, model_repo_id, token=os.getenv("HF_TOKEN"))
+            lora_model = PeftModel.from_pretrained(self.base_model, model_repo_id, token=getHFToken())
             self.loaded_loras[lora_id] = lora_model
         else:
             lora_model = self.loaded_loras[lora_id]
