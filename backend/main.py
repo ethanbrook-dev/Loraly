@@ -53,16 +53,18 @@ async def chat(request: Request) -> JSONResponse:
         return JSONResponse({"error": "Missing loraid or prompt"}, status_code=400)
 
     try:
-        response = await chat_worker.chat_with_lora.remote(
+        print("🚀 Sending prompt to Modal...")
+        response = chat_worker.chat_with_lora.remote(
             hf_username=os.getenv("HF_USERNAME"),
             hf_token=os.getenv("HF_TOKEN"), 
             lora_id=loraid, 
             prompt=prompt
         )
-        print(f"✅ Response: {response}")
         return {"response": response}
     except Exception as e:
+        import traceback
         print("❌ ERROR GETTING RESPONSE")
+        traceback.print_exc()
         return JSONResponse({"error": str(e)}, status_code=500)
 
 # ------------------------------------------------- GENERATING VOICE API ------------------------------------------------- #

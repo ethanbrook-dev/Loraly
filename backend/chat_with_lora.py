@@ -55,20 +55,26 @@ class MistralChat:
         if not prompt.strip():
             return "⚠️ Empty prompt provided."
 
+        print("🧠 Formatting prompt...")
         formatted = f"[INST] {prompt.strip()} [/INST]"
 
+        print("🔢 Tokenizing...")
         inputs = self.tokenizer(formatted, return_tensors="pt").to(lora_model.device)
 
+        print("🧪 Generating response...")
         with torch.no_grad():
             outputs = lora_model.generate(
                 **inputs,
-                max_new_tokens=32,
+                max_new_tokens=256,
                 temperature=0.7,
                 top_p=0.9,
                 do_sample=True,
                 pad_token_id=self.tokenizer.eos_token_id
             )
 
+        print("📝 Decoding output...")
         output_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
         reply = output_text.split("[/INST]")[-1].strip()
+        print(f"✅ Reply ready. Reply is \"{reply}\"")
+
         return reply
