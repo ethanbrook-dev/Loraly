@@ -16,38 +16,53 @@ image = (
 
 
 # ✅ This class will stay alive between requests (no reloads per prompt)
-@app.cls(gpu="A100", image=image, timeout=900)
+@app.cls(gpu="A100-80GB", image=image, timeout=900)
 class MistralChat:
-    def __enter__(self):
+        
+    def load(self, hf_token: str):
         print("🔄 Loading base model & tokenizer once per container...")
-        self.tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.3")
-        base_model = AutoModelForCausalLM.from_pretrained(
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            "mistralai/Mistral-7B-Instruct-v0.3",
+            token=hf_token
+        )
+        self.base_model = AutoModelForCausalLM.from_pretrained(
             "mistralai/Mistral-7B-Instruct-v0.3",
             torch_dtype=torch.float16,
-            device_map="auto"
-        )
-        self.base_model = base_model
+            device_map="auto",
+            token=hf_token
+        ).half().to("cuda")
         self.loaded_loras = {}
 
     @modal.method()
-    def chat_with_lora(self, lora_id: str, prompt: str) -> str:
+    def chat_with_lora(self, hf_username: str, hf_token: str, lora_id: str, prompt: str) -> str:
         
-        model_repo_id = f"{UUUUUUUUUUU}/{lora_id}-model" # DO NOT CHANGE THIS -> the docker image will create this repo
+        if not hasattr(self, "base_model") or not hasattr(self, "tokenizer"):
+            self.load(hf_token)
+
+        model_repo_id = f"{hf_username}/{lora_id}-model" # DO NOT CHANGE THIS -> the docker image will create this repo
         
         if lora_id not in self.loaded_loras:
             print(f"⚡ Loading LoRA: {lora_id} with modelID: {model_repo_id}")
-            lora_model = PeftModel.from_pretrained(self.base_model, model_repo_id, token=UUUUUUUUUUUUU)
+            try:
+                lora_model = PeftModel.from_pretrained(self.base_model, model_repo_id, token=hf_token)
+            except Exception as e:
+                raise RuntimeError(f"Failed to load LoRA model from {model_repo_id}: {e}")
+
             self.loaded_loras[lora_id] = lora_model
         else:
             lora_model = self.loaded_loras[lora_id]
 
+        if not prompt.strip():
+            return "⚠️ Empty prompt provided."
+
         formatted = f"[INST] {prompt.strip()} [/INST]"
+
         inputs = self.tokenizer(formatted, return_tensors="pt").to(lora_model.device)
 
         with torch.no_grad():
             outputs = lora_model.generate(
                 **inputs,
-                max_new_tokens=256,
+                max_new_tokens=32,
                 temperature=0.7,
                 top_p=0.9,
                 do_sample=True,

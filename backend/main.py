@@ -1,6 +1,8 @@
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+import os
+from dotenv import load_dotenv
 
 # For training:
 import json, tempfile, re, os, asyncio
@@ -19,6 +21,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Load environment variables
+env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env.local'))
+load_dotenv(dotenv_path=env_path)
 
 # ------------------------------------------------- CHATTING API ------------------------------------------------- #
 # 🔁 Correct way to hydrate class from deployed Modal App
@@ -47,7 +53,12 @@ async def chat(request: Request) -> JSONResponse:
         return JSONResponse({"error": "Missing loraid or prompt"}, status_code=400)
 
     try:
-        response = await chat_worker.chat_with_lora.remote(loraid, prompt)
+        response = await chat_worker.chat_with_lora.remote(
+            hf_username=os.getenv("HF_USERNAME"),
+            hf_token=os.getenv("HF_TOKEN"), 
+            lora_id=loraid, 
+            prompt=prompt
+        )
         print(f"✅ Response: {response}")
         return {"response": response}
     except Exception as e:
