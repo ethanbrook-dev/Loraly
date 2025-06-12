@@ -60,6 +60,7 @@ async def chat(request: Request) -> JSONResponse:
             lora_id=loraid, 
             prompt=prompt
         )
+        response = response.replace(prompt, "").strip()
         return {"response": response}
     except Exception as e:
         import traceback
