@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "backend": "uvicorn backend.main:app --reload --port 8010"
+    "backend": "uvicorn backend.main:app --reload --port 8020"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.7",

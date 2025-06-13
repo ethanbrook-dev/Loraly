@@ -136,7 +136,6 @@ export default function CreatorDashboard() {
       const audio_files = loras.find((lora) => lora.id === loraId)?.audio_files || [];
 
       if (audio_files.length === 0) {
-        console.error("Failed to fetch audio files");
         setErrorLoraId(loraId);
         setLoadingLoraId(null);
         setTimeout(() => setErrorLoraId(null), returnTime);
