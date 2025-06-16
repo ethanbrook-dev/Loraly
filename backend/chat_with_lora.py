@@ -1,3 +1,5 @@
+# chat_with_lora.py is a script pushed to Modal
+
 import modal
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import PeftModel

@@ -1,3 +1,5 @@
+# The python training script (starting a pod, training, closing the pod, ... , checking hf)
+
 import os
 import time
 import requests
@@ -241,7 +243,7 @@ def check_lora_model_uploaded(lora_id: str) -> bool:
             for f in files
         )
     except Exception as e:
-        print(f"⚠️ Error checking model upload: {e}")
+        print(f"❌ HuggingFace Model not found yet ... waiting ...")
         return False
 
 def delete_pod(pod_id: str):
