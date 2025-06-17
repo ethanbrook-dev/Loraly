@@ -1,3 +1,5 @@
+// Displaying the user (UserHeader)
+
 import React from 'react';
 
 type UserHeaderProps = {

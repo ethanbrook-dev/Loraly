@@ -1,3 +1,5 @@
+// The user's profile pic display and fetching
+
 'use client';
 
 // React imports
