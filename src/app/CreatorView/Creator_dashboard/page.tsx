@@ -65,7 +65,7 @@ export default function CreatorDashboard() {
   const [loras, setLoras] = useState<Lora[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
 
-  const [loadingLoraId, setLoadingLoraId] = useState<string | null>(null);
+  const [loadingLoraIDs, setLoadingLoraIDs] = useState<Record<string, boolean>>({});
   const [errorLoraId, setErrorLoraId] = useState<string | null>(null);
 
   const [trainingMessage, setTrainingMessage] = useState<string | null>(null);
@@ -111,7 +111,7 @@ export default function CreatorDashboard() {
 
   useEffect(() => {
     // Reset loading state when component mounts
-    setLoadingLoraId(null);
+    setLoadingLoraIDs({});
   }, []);
 
   // Handle LoRA Deletion
@@ -129,6 +129,9 @@ export default function CreatorDashboard() {
   };
 
   const handleGenerateVoice = async (loraId: string) => {
+    if (loadingLoraIDs[loraId]) return; // 🚫 Prevent double clicking
+    setLoadingLoraIDs(prev => ({ ...prev, [loraId]: true }));
+
     const returnTime = 2000; // 2 seconds buffer
 
     try {
@@ -137,7 +140,7 @@ export default function CreatorDashboard() {
 
       if (audio_files.length === 0) {
         setErrorLoraId(loraId);
-        setLoadingLoraId(null);
+        setLoadingLoraIDs((prev) => ({ ...prev, [loraId]: false }));
         setTimeout(() => setErrorLoraId(null), returnTime);
         return;
       }
@@ -154,20 +157,22 @@ export default function CreatorDashboard() {
       // ❌ Not enough text — show message
       if (totalWords < MIN_WORDS_FOR_LORA_GEN) {
         setErrorLoraId(loraId);
-        setLoadingLoraId(null);
+        setLoadingLoraIDs((prev) => ({ ...prev, [loraId]: false }));
         setTimeout(() => setErrorLoraId(null), returnTime);
         return;
       }
-
-      // ✅ Proceed with voice generation
-      console.log("Generating voice for:", loraId, "Total words:", totalWords);
-      console.log("Route to another loading page saying generation started (FOR DEV) and route to pay  (FOR PRODUCTION)");
 
       // ✅ Enough words — now join everything
       const fullText = audio_files
         .map((file: { text: string }) => file.text?.trim())
         .filter(Boolean)
         .join(' ');
+
+      setLoras((prev) =>
+        prev.map((lora) =>
+          lora.id === loraId ? { ...lora, training_status: LoraStatus.TRAINING } : lora
+        )
+      );
 
       const res = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_BACKEND_URL}/generate-voice`, {
         method: 'POST',
@@ -189,7 +194,7 @@ export default function CreatorDashboard() {
       setErrorLoraId(loraId);
       setTimeout(() => setErrorLoraId(null), returnTime);
     } finally {
-      setLoadingLoraId(null);
+      setLoadingLoraIDs((prev) => ({ ...prev, [loraId]: false }));
     }
   };
 
@@ -254,29 +259,22 @@ export default function CreatorDashboard() {
                       </>
                     ) : (
                       <>
-                        {loadingLoraId === lora.id ? (
+                        {loadingLoraIDs[lora.id] ? (
                           <div className="spinner" />
                         ) : (
                           <>
                             <button
                               className="record-more-button"
                               onClick={() => {
-                                setLoadingLoraId(lora.id);
-                                setTimeout(() => {
-                                  router.push(`../../../CreatorView/Creator_recordings/${lora.id}`);
-                                }, 1000);
+                                setLoadingLoraIDs(prev => ({ ...prev, [lora.id]: true }));
+                                router.push(`../../../CreatorView/Creator_recordings/${lora.id}`);
                               }}
                             >
                               Record for this Voice
                             </button>
                             <button
                               className="generate-voice-button"
-                              onClick={() => {
-                                setLoadingLoraId(lora.id);
-                                setTimeout(() => {
-                                  handleGenerateVoice(lora.id);
-                                }, 1000);
-                              }}
+                              onClick={() => handleGenerateVoice(lora.id)}
                             >
                               Generate Voice
                             </button>
@@ -293,15 +291,28 @@ export default function CreatorDashboard() {
                     )}
                   </div>
 
-                  <button
+                  {lora.training_status !== LoraStatus.TRAINING_COMPLETED && (
+                    <button
                       className="delete-button"
-                      onClick={() => {
-                        handleDeleteLora(lora);
-                      }}
+                      onClick={() => handleDeleteLora(lora)}
                       title="Delete Voice"
+                      disabled={
+                        loadingLoraIDs[lora.id] || lora.training_status === LoraStatus.TRAINING
+                      }
+                      style={{
+                        opacity:
+                          loadingLoraIDs[lora.id] || lora.training_status === LoraStatus.TRAINING
+                            ? 0.5
+                            : 1,
+                        cursor:
+                          loadingLoraIDs[lora.id] || lora.training_status === LoraStatus.TRAINING
+                            ? 'not-allowed'
+                            : 'pointer',
+                      }}
                     >
                       <img src="/delete-icon.svg" alt="Delete" />
                     </button>
+                  )}
                 </div>
               );
             })}

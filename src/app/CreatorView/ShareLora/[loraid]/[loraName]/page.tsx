@@ -1,3 +1,5 @@
+// Sharing lora page (search like IG)
+
 'use client';
 
 import { useRouter, useParams } from 'next/navigation';

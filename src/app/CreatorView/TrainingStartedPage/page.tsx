@@ -23,7 +23,7 @@ export default function TrainingStartedPage() {
         <div className="spinner" />
       </div>
       <h1>Voice generation has started!</h1>
-      <p>It usually takes about 30 minutes to complete. </p>
+      <p>It usually takes about 10 hours to complete. </p>
       <p>Check your dashboard later to see when it’s ready.</p>
 
       <style jsx>{`
