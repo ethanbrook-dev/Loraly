@@ -86,11 +86,14 @@ def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> tuple[bool, s
     print("✅ Training config uploaded to pod.")
     print("⏳ Waiting for model to appear on HF...")
 
+    hours_to_wait = 3
+    seconds_to_wait = hours_to_wait * 3600 # There are 3600 seconds in 1 hour
+    
     while True:
         if check_lora_model_uploaded(lora_id):
             print("✅ LoRA model found on HF.")
             return True, pod_id
-        time.sleep(600)
+        time.sleep(seconds_to_wait)
 
 def create_pod(lora_id: str, dataset_repo_id: str, model_output_path: str, config_content: str) -> str:
     headers = runpod_headers()
