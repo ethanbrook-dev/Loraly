@@ -86,14 +86,11 @@ def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> tuple[bool, s
     print("✅ Training config uploaded to pod.")
     print("⏳ Waiting for model to appear on HF...")
 
-    for _ in range(120):  # 1 hour timeout
+    while True:
         if check_lora_model_uploaded(lora_id):
             print("✅ LoRA model found on HF.")
             return True, pod_id
-        time.sleep(30)
-
-    print("❌ Timed out waiting for LoRA model to upload.")
-    return False, pod_id
+        time.sleep(600)
 
 def create_pod(lora_id: str, dataset_repo_id: str, model_output_path: str, config_content: str) -> str:
     headers = runpod_headers()
@@ -157,7 +154,7 @@ def create_pod(lora_id: str, dataset_repo_id: str, model_output_path: str, confi
 
     return None
 
-def wait_for_pod_ready(lora_id: str, interval=53, retries=30) -> bool:
+def wait_for_pod_ready(lora_id: str, interval=100, retries=30) -> bool:
     headers = runpod_headers()
     pod_name = f"{lora_id}-trainer"
 

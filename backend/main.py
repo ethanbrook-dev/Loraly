@@ -1,4 +1,4 @@
-# main.py - the entrypoint for the backend
+# main.py - the entrypoint for the backend 
 
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
