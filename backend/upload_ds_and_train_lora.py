@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from huggingface_hub import HfApi
 from supabase import create_client
 from enum import Enum
+from datetime import datetime
 
 class LoraStatus(str, Enum):
     TRAINING = "training"
@@ -70,6 +71,8 @@ def upload_dataset(api: HfApi, repo_id: str, file_path: str) -> bool:
 
 def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> tuple[bool, str | None]:
     
+    training_start = datetime.now()
+    
     # These are the config filepath (you can read from this and put into the pod creation)
     # Also the output_model_path is the path where the model will be saved
     print("🔄 Starting training pipeline...")
@@ -92,9 +95,17 @@ def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> tuple[bool, s
     
     while True:
         count += 1
+        
         if check_lora_model_uploaded(lora_id):
             print("✅ LoRA model found on HF.")
+            
+            training_end = datetime.now()
+            duration = training_end - training_start
+            hours = duration.total_seconds() / 3600
+            
+            print(f"🕒 LoRA took {hours:.2f} hours to train.")
             return True, pod_id
+        
         print(f"⚙️ LoRA has been training for {count * hours_to_wait} hours now.")
         time.sleep(seconds_to_wait)
 
