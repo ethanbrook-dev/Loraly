@@ -1,3 +1,5 @@
+// Role select: Creator or Explorer
+
 'use client';
 
 // React imports
