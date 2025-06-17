@@ -89,7 +89,7 @@ def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> tuple[bool, s
     print("✅ Training config uploaded to pod.")
     print("⏳ Waiting for model to appear on HF...")
 
-    hours_to_wait = 3
+    hours_to_wait = 2
     seconds_to_wait = hours_to_wait * 3600 # There are 3600 seconds in 1 hour
     count = 0
     
