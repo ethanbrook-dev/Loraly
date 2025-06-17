@@ -404,3 +404,27 @@ export async function updateLORATrainingStatus(
     return !error;
 }
 
+export async function deleteSharedLORAFromUser(
+  userId: string,
+  loraId: string
+): Promise<boolean> {
+  const userProfile = await getUSERProfile(userId);
+  if (!userProfile) return false;
+
+  const updatedLoras = (userProfile.loras_shared_w_me || []).filter(
+    (lora: SharedLora) => lora.id !== loraId
+  );
+
+  const success = await updateLorasSharedWithUser(userId, updatedLoras);
+
+  return success;
+}
+
+export async function deleteSharedLORAPicFromStorage(path: string): Promise<boolean> {
+  const { error } = await supabase
+    .storage
+    .from(SHARED_LORA_PIC_BUCKET)
+    .remove([path]);
+
+  return !error;
+}
