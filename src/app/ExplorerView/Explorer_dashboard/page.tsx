@@ -1,3 +1,5 @@
+// Explorer dashboard
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -8,6 +10,8 @@ import {
   getUSERProfile,
   generateUSERProfilePicSignedUrl,
   generateSharedLORAProfilePicSignedUrl,
+  deleteSharedLORAFromUser,
+  deleteSharedLORAPicFromStorage
 } from '../../components/db_funcs/db_funcs';
 
 import UserHeader from '@/app/components/UserHeader';
@@ -34,6 +38,9 @@ export default function ExplorerDashboard() {
   const [userData, setUserData] = useState<UserProfile | null>(null);
   const [userProfilePicUrl, setUserProfilePicUrl] = useState<string | null>(null);
   const [signedLoraPicUrls, setSignedLoraPicUrls] = useState<Record<string, string>>({});
+
+  const [showModal, setShowModal] = useState(false);
+  const [selectedLora, setSelectedLora] = useState<SharedLora | null>(null);
 
   // Fetch user profile and signed URLs
   useEffect(() => {
@@ -81,7 +88,7 @@ export default function ExplorerDashboard() {
 
       <div className="shared-loras-container">
         {userData?.loras_shared_w_me.length === 0 ? (
-          <p className="no-loras-text">Nothing here just yet. When someone shares a voice with you, it’ll show up here 💌</p>
+          <p className="no-loras-text">Nothing here just yet. When someone shares a voice with you, it’ll show up here</p>
         ) : (
           userData?.loras_shared_w_me.map((lora) => (
             <div key={lora.id} className="lora-card">
@@ -104,7 +111,10 @@ export default function ExplorerDashboard() {
 
                   <button
                     className="delete-button"
-                    onClick={() => alert(`Delete ${lora.id} --- PLACEHOLDER ---`)}
+                    onClick={() => {
+                      setSelectedLora(lora);
+                      setShowModal(true);
+                    }}
                   >
                     Delete
                   </button>
@@ -113,6 +123,55 @@ export default function ExplorerDashboard() {
             </div>
           ))
         )}
+
+        {showModal && selectedLora && (
+          <ConfirmDeleteModal
+            onConfirm={async () => {
+              setShowModal(false);
+
+              const user = await getAuthenticatedUser();
+              if (!user || !selectedLora) return;
+
+              const deletedFromUser = await deleteSharedLORAFromUser(user.id, selectedLora.id);
+              const deletedPic = await deleteSharedLORAPicFromStorage(selectedLora.shared_pic_url);
+
+              if (deletedFromUser) {
+                // Update UI
+                setUserData((prev) =>
+                  prev
+                    ? {
+                      ...prev,
+                      loras_shared_w_me: prev.loras_shared_w_me.filter((l) => l.id !== selectedLora.id),
+                    }
+                    : null
+                );
+              } else {
+                alert("Failed to delete shared LoRA.");
+              }
+
+              setSelectedLora(null);
+            }}
+            onCancel={() => {
+              setShowModal(false);
+              setSelectedLora(null);
+            }}
+          />
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+function ConfirmDeleteModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content">
+        <p>Are you sure you want to delete this shared voice?</p>
+        <div className="modal-buttons">
+          <button className="confirm-button" onClick={onConfirm}>Yes, delete</button>
+          <button className="cancel-button" onClick={onCancel}>Cancel</button>
+        </div>
       </div>
     </div>
   );

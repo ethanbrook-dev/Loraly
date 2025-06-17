@@ -1,3 +1,5 @@
+// The chat interface and UI
+
 'use client';
 
 import { useEffect, useState } from 'react';
