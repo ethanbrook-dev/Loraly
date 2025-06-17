@@ -94,8 +94,6 @@ def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> tuple[bool, s
     count = 0
     
     while True:
-        count += 1
-        
         if check_lora_model_uploaded(lora_id):
             print("✅ LoRA model found on HF.")
             
@@ -108,6 +106,7 @@ def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> tuple[bool, s
         
         print(f"⚙️ LoRA has been training for {count * hours_to_wait} hours now.")
         time.sleep(seconds_to_wait)
+        count += 1
 
 def create_pod(lora_id: str, dataset_repo_id: str, model_output_path: str, config_content: str) -> str:
     headers = runpod_headers()
