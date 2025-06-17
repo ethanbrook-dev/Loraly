@@ -1,3 +1,5 @@
+// message to display for the webspeech api recorder to work (that is, the client should be using the web)
+
 export const browserWarningMessage = (unsupportedBrowser: boolean) => (
   <>
     ⚠️ At this time, voice recording is supported exclusively on
