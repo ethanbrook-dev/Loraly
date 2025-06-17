@@ -89,11 +89,12 @@ def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> tuple[bool, s
     print("✅ Training config uploaded to pod.")
     print("⏳ Waiting for model to appear on HF...")
 
+    max_hours = 24 # Allow a full day of training till timeout
     hours_to_wait = 2
-    seconds_to_wait = hours_to_wait * 3600 # There are 3600 seconds in 1 hour
+    seconds_to_wait = hours_to_wait * 3600  # 7200 seconds = 2 hours
     count = 0
-    
-    while True:
+
+    while count * hours_to_wait < max_hours:
         if check_lora_model_uploaded(lora_id):
             print("✅ LoRA model found on HF.")
             
@@ -107,6 +108,11 @@ def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> tuple[bool, s
         print(f"⚙️ LoRA has been training for {count * hours_to_wait} hours now.")
         time.sleep(seconds_to_wait)
         count += 1
+
+    # If max wait is hit:
+    print(f"⏰ LoRA model training timeout of {max_hours} hours reached.")
+    return False, pod_id
+
 
 def create_pod(lora_id: str, dataset_repo_id: str, model_output_path: str, config_content: str) -> str:
     headers = runpod_headers()
