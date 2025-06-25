@@ -49,10 +49,8 @@ export default function RecordingsPage() {
   const [error, setError] = useState('');
 
   const [isRecording, setIsRecording] = useState(false);
-  const [recordingComplete, setRecordingComplete] = useState(false);
   const [transcript, setTranscript] = useState('');
   const finalTranscript = useRef('');
-  const [audioURL, setAudioURL] = useState<string | null>(null);
   const [recordingDuration, setRecordingDuration] = useState<number | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -105,10 +103,8 @@ export default function RecordingsPage() {
         recorder.onstop = () => {
           const blob = new Blob(chunks.current, { type: 'audio/ogg; codecs=opus' });
           const url = URL.createObjectURL(blob);
-          setAudioURL(url);
           const duration = startTimeRef.current ? (Date.now() - startTimeRef.current) / 1000 : 0;
           setRecordingDuration(duration);
-          setRecordingComplete(true);
           setShowConfirmationModal(true);
         };
 
@@ -156,8 +152,6 @@ export default function RecordingsPage() {
   const resetRecording = () => {
     setTranscript("");
     finalTranscript.current = "";
-    setAudioURL(null);
-    setRecordingComplete(false);
     setRecordingDuration(null);
     setIsRecording(false);
   };
@@ -213,10 +207,11 @@ export default function RecordingsPage() {
       <h1 className="pageTitle">My Recordings</h1>
 
       <p className="recording-guidelines">
-        🎙️ For best results, speak clearly and avoid noisy places. <br />
-        ⏱️ Shorter recordings tend to be clearer and more accurate.<br />
-        🗣️ Don’t worry — longer clips work too!<br />
-        ⚠️ Just remember, long recordings might not sound as sharp unless you speak clearly.
+        🎙️ For the best results, speak clearly and avoid noisy environments. <br />
+        🎧 Avoid having any listening devices plugged in (headphones, earphones, earbuds, or similar), as this can reduce transcription accuracy. <br />
+        ⏱️ Shorter recordings usually yield clearer and more accurate transcriptions. <br />
+        🗣️ Don’t worry — longer clips work too! <br />
+        ⚠️ Just remember, longer recordings may not be as sharp unless you speak clearly throughout.
       </p>
 
       <button className="back-btn" onClick={() => router.push('../Creator_dashboard')}>
@@ -231,12 +226,6 @@ export default function RecordingsPage() {
             className="mic-icon"
           />
         </button>
-        {/*************** IMPORTANT: The code below is the code for one-time playback (use this later with elevenlabs api)*/}
-        {/* {audioURL && (
-          <div className="playback-wrapper">
-            <audio controls src={audioURL} />
-          </div>
-        )} */}
       </section>
 
       {(showConfirmationModal || showNameForm) && (
@@ -269,12 +258,12 @@ export default function RecordingsPage() {
                 />
                 {nameError && <p className="voice-error-message">{nameError}</p>}
                 <button className="voice-save-button" onClick={saveRecording}>Save Recording</button>
-                <button 
-                className="record-more-button" 
-                onClick={() => {
-                  setShowNameForm(false);
-                  resetRecording();
-                }}>
+                <button
+                  className="record-more-button"
+                  onClick={() => {
+                    setShowNameForm(false);
+                    resetRecording();
+                  }}>
                   Cancel
                 </button>
               </>
