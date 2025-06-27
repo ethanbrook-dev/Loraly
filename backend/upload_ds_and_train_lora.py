@@ -124,7 +124,7 @@ def create_pod(lora_id: str, dataset_repo_id: str, model_output_path: str, confi
         print("❌ Failed to fetch GPU types:", resp["errors"])
         return None
 
-    gpus = sorted([g for g in resp["data"]["gpuTypes"] if g["memoryInGb"] >= 24], key=lambda x: x["memoryInGb"])
+    gpus = sorted([g for g in resp["data"]["gpuTypes"] if g["memoryInGb"] >= 40], key=lambda x: x["memoryInGb"])
     if not gpus:
         print("❌ No eligible GPUs found.")
         return None
