@@ -141,7 +141,7 @@ def create_pod(lora_id: str, dataset_repo_id: str, model_output_path: str, confi
                 "minMemoryInGb": 15,
                 "gpuTypeId": gpu["id"],
                 "name": pod_name,
-                "imageName": "docker3randomdude/lora-trainer:latest", # My custom docker image
+                "imageName": "docker3randomdude/lora-training-image",
                 "dockerArgs": "",
                 "ports": "8888/http",
                 "volumeMountPath": "/workspace",
