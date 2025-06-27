@@ -82,7 +82,7 @@ async def generate_voice(request: Request, background_tasks: BackgroundTasks):
 
     jsonl_str = text_to_jsonl_string(text)
 
-    with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".jsonl") as temp_file:
+    with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".jsonl", encoding="utf-8") as temp_file:
         temp_file_path = temp_file.name
         temp_file.write(jsonl_str)
         temp_file.flush()
@@ -137,8 +137,8 @@ def check_for_unicode(text: str) -> list:
 def text_to_jsonl_string(raw_text: str) -> str:
     cleaned_text = clean_unicode(raw_text)
 
-    # Optionally remove all non-ASCII:
-    # cleaned_text = remove_all_unicode_except_ascii(cleaned_text)
+    # Remove all non-ASCII:
+    cleaned_text = remove_all_unicode_except_ascii(cleaned_text)
 
     # Optional: Check for leftovers
     leftovers = check_for_unicode(cleaned_text)
