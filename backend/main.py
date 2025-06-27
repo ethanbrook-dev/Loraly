@@ -7,7 +7,8 @@ import os
 from dotenv import load_dotenv
 
 # For training:
-import json, tempfile, re, os, asyncio
+import json, tempfile, re, unicodedata
+import os, asyncio
 from backend.upload_ds_and_train_lora import upload_ds_and_train_lora
 
 # For chatting:
@@ -103,15 +104,49 @@ async def delete_file_after_delay(file_path: str, delay_seconds: int):
     except Exception as e:
         print(f"⚠️ Error deleting temp file: {e}")
 
+def clean_unicode(text: str) -> str:
+    replacements = {
+        "’": "'",
+        "‘": "'",
+        "“": '"',
+        "”": '"',
+        "–": "-",     # en dash
+        "—": "-",     # em dash
+        "…": "...",   # ellipsis
+        "•": "-",     # bullet
+        " ": " ",     # narrow no-break space
+        "\u00A0": " ",  # non-breaking space
+    }
+
+    # Replace known characters
+    for bad, good in replacements.items():
+        text = text.replace(bad, good)
+
+    # Normalize text to a consistent form
+    text = unicodedata.normalize('NFKC', text)
+
+    return text
+
+def remove_all_unicode_except_ascii(text: str) -> str:
+    return text.encode("ascii", errors="ignore").decode()
+
+def check_for_unicode(text: str) -> list:
+    """Returns a list of all non-ASCII characters in the string"""
+    return [char for char in set(text) if ord(char) > 127]
+
 def text_to_jsonl_string(raw_text: str) -> str:
-    cleaned_text = (
-        raw_text.replace("’", "'")
-                .replace("‘", "'")
-                .replace("“", '"')
-                .replace("”", '"')
-    )
+    cleaned_text = clean_unicode(raw_text)
+
+    # Optionally remove all non-ASCII:
+    # cleaned_text = remove_all_unicode_except_ascii(cleaned_text)
+
+    # Optional: Check for leftovers
+    leftovers = check_for_unicode(cleaned_text)
+    if leftovers:
+        print(f"⚠️ Warning: Unicode characters still present: {leftovers}")
+
+    # Sentence splitting
     sentences = re.findall(r'[^.?!]+[.?!]', cleaned_text)
     sentences = [s.strip() for s in sentences if s.strip()]
     lines = [json.dumps({"text": sentence}, ensure_ascii=False) for sentence in sentences]
     return "\n".join(lines)
-
