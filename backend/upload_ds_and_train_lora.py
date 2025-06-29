@@ -141,10 +141,10 @@ def create_pod(lora_id: str, dataset_repo_id: str, model_output_path: str, confi
                 "minMemoryInGb": 15,
                 "gpuTypeId": gpu["id"],
                 "name": pod_name,
-                "imageName": "docker3randomdude/lora-training-image",
+                "imageName": "docker3randomdude/lt-image-v3:latest",
                 "dockerArgs": "",
                 "ports": "8888/http",
-                "volumeMountPath": "/workspace",
+                "volumeMountPath": "/data",
                 "env": [
                     {"key": "HF_TOKEN", "value": os.getenv("HF_TOKEN")},
                     {"key": "HF_USERNAME", "value": os.getenv("HF_USERNAME")},

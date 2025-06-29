@@ -145,7 +145,7 @@ export default function ShareLoraPage() {
               className="search-user-card"
               onClick={() => handleShare(user)}>
               <img
-                src={user.profile_pic_url || ''}
+                src={user.profile_pic_url || undefined}
                 alt="Profile"
                 className="user-avatar"
               />
