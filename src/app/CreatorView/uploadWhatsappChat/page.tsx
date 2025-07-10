@@ -40,57 +40,62 @@ export default function UploadWhatsappChat() {
   };
 
   const parseZipFile = async (zipFile: File) => {
-    setLoading(true);
-    try {
-      const zip = await JSZip.loadAsync(zipFile);
-      const chatFileName = Object.keys(zip.files).find(name =>
-        name.toLowerCase().endsWith('_chat.txt')
-      );
-      if (!chatFileName) {
-        setError("No '_chat.txt' file found in the zip.");
-        setLoading(false);
-        return;
-      }
-
-      const chatText = await zip.files[chatFileName].async('text');
-      const lines = chatText.split(/\r?\n/);
-
-      // Message format: [1/26/25, 17:39:52] Ethan Brook: message
-      const messageRegex = /^\[\d{1,2}\/\d{1,2}\/\d{2,4}, \d{1,2}:\d{2}:\d{2}\] (.*?): /;
-
-      const uniqueNames = new Set<string>();
-      let groupName: string | null = null;
-
-      const tempMessages: Message[] = [];
-
-      for (const line of lines) {
-        const match = line.match(messageRegex);
-        if (!match) continue;
-
-        const name = match[1];
-        const cleanedName = name.trim().replace(/\u200E/g, ''); // remove hidden LTR mark
-
-        if (line.includes('Messages and calls are end-to-end encrypted')) {
-          groupName = cleanedName;
-          continue;
-        }
-
-        if (cleanedName === 'You') continue;
-        if (groupName && cleanedName === groupName) continue;
-
-        uniqueNames.add(cleanedName);
-      }
-
-      setAllMessages(tempMessages);
-      setParticipants(Array.from(uniqueNames));
-      setError(null);
-    } catch (err) {
-      console.error(err);
-      setError('Failed to parse the WhatsApp .zip file.');
-    } finally {
+  setLoading(true);
+  try {
+    const zip = await JSZip.loadAsync(zipFile);
+    const chatFileName = Object.keys(zip.files).find(name =>
+      name.toLowerCase().endsWith('_chat.txt')
+    );
+    if (!chatFileName) {
+      setError("No '_chat.txt' file found in the zip.");
       setLoading(false);
+      return;
     }
-  };
+
+    const chatText = await zip.files[chatFileName].async('text');
+    const lines = chatText.split(/\r?\n/);
+
+    // Matches: [MM/DD/YY, HH:mm:ss] Name: message
+    const messageRegex = /^\[(\d{1,2}\/\d{1,2}\/\d{2,4}), \d{1,2}:\d{2}:\d{2}\] (.*?): (.*)$/;
+
+    const uniqueNames = new Set<string>();
+    const tempMessages: Message[] = [];
+
+    for (const line of lines) {
+      const match = line.match(messageRegex);
+      if (!match) continue;
+
+      let name = match[2].trim().replace(/\u200E/g, '');  // remove invisible LTR marks
+      let message = match[3].trim().replace(/\u200E/g, '');
+
+      // Skip lines with only system messages or empty content
+      if (
+        message === 'Messages and calls are end-to-end encrypted. Only people in this chat can read, listen to, or share them.' ||
+        message === 'image omitted' ||
+        message === '‎You pinned a message' ||
+        message === ''
+      ) {
+        continue;
+      }
+
+      // Skip WhatsApp's "You" placeholder (your own messages)
+      if (name === 'You') continue;
+
+      uniqueNames.add(name);
+      tempMessages.push({ name, message });
+    }
+
+    setAllMessages(tempMessages);
+    console.log("all messages I got are:", tempMessages);
+    setParticipants(Array.from(uniqueNames));
+    setError(null);
+  } catch (err) {
+    console.error(err);
+    setError('Failed to parse the WhatsApp .zip file.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleConfirm = () => {
     if (!selectedParticipant) {
@@ -99,13 +104,12 @@ export default function UploadWhatsappChat() {
     }
     setError(null);
 
-    const cleanedSelected = selectedParticipant.replace(/\u200E/g, '').trim();
     const entries: Entry[] = [];
 
     let inputBuffer: string[] = [];
 
     for (const msg of allMessages) {
-      if (msg.name !== cleanedSelected) {
+      if (msg.name !== selectedParticipant) {
         inputBuffer.push(msg.message);
       } else {
         if (inputBuffer.length > 0) {
