@@ -273,6 +273,12 @@ export default function CreatorDashboard() {
                               Record for this Voice
                             </button>
                             <button
+                              className="upload-chat-file-button"
+                              onClick={() => router.push('../../../CreatorView/UploadChatFileInstructions')}
+                            >
+                              Upload Completed Chat File
+                            </button>
+                            <button
                               className="generate-voice-button"
                               onClick={() => handleGenerateVoice(lora.id)}
                             >
