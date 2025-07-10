@@ -95,7 +95,7 @@ export default function LoginANDSignup() {
               style={{ width: '100%', height: '100%', objectFit: 'contain' }}
             />
           </div>
-          <h1 className="aftervoice-title">AfterVoiceAI</h1>
+          <h1 className="aftervoice-title">[app name goes here]</h1>
           <div className="aftervoice-subtitle">
             {isLoginView ? 'Login to your account' : 'Create new account'}
           </div>

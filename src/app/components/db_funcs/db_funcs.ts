@@ -120,8 +120,23 @@ export async function generateUSERProfilePicSignedUrl(
 export async function uploadToUSERProfilePics(
     userID: string,
     filePath: string,
-    file: File
+    file: File,
+    oldFilePath?: string
 ): Promise<boolean> {
+    // 1. Delete old profile pic if it exists
+    if (oldFilePath) {
+        console.log('Deleting old profile pic:', oldFilePath);
+        const { error: deleteError } = await supabase.storage
+            .from(USER_PROFILE_PIC_BUCKET_NAME)
+            .remove([oldFilePath]);
+
+        if (deleteError) {
+            console.error('Error deleting old profile pic:', deleteError);
+            return false;
+        }
+    }
+
+    // 2. Upload new file
     const { error } = await supabase.storage
         .from(USER_PROFILE_PIC_BUCKET_NAME)
         .upload(filePath, file, {
@@ -134,6 +149,7 @@ export async function uploadToUSERProfilePics(
         return false;
     }
 
+    // 3. Update DB
     const { error: updateError } = await supabase
         .from(USER_TABLE_NAME)
         .update({ profile_pic_url: filePath })
@@ -405,26 +421,34 @@ export async function updateLORATrainingStatus(
 }
 
 export async function deleteSharedLORAFromUser(
-  userId: string,
-  loraId: string
+    userId: string,
+    loraId: string
 ): Promise<boolean> {
-  const userProfile = await getUSERProfile(userId);
-  if (!userProfile) return false;
+    const userProfile = await getUSERProfile(userId);
+    if (!userProfile) return false;
 
-  const updatedLoras = (userProfile.loras_shared_w_me || []).filter(
-    (lora: SharedLora) => lora.id !== loraId
-  );
+    const updatedLoras = (userProfile.loras_shared_w_me || []).filter(
+        (lora: SharedLora) => lora.id !== loraId
+    );
 
-  const success = await updateLorasSharedWithUser(userId, updatedLoras);
+    const success = await updateLorasSharedWithUser(userId, updatedLoras);
+    if (success) {
+        // Also delete the shared LORA pic from storage
+        const loraProfilePicUrl = await getLORAProfilePicUrl(loraId);
+        if (loraProfilePicUrl) {
+            const picDeleted = await deleteSharedLORAPicFromStorage(loraProfilePicUrl);
+            return picDeleted;
+        }
+    }
 
-  return success;
+    return success;
 }
 
 export async function deleteSharedLORAPicFromStorage(path: string): Promise<boolean> {
-  const { error } = await supabase
-    .storage
-    .from(SHARED_LORA_PIC_BUCKET)
-    .remove([path]);
+    const { error } = await supabase
+        .storage
+        .from(SHARED_LORA_PIC_BUCKET)
+        .remove([path]);
 
-  return !error;
+    return !error;
 }

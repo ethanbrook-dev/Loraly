@@ -308,7 +308,7 @@ body {
   flex-wrap: wrap;
   justify-content: center;
 }
-
+ 
 .role-button {
   padding: clamp(0.75rem, 2vw, 1rem) clamp(1rem, 3vw, 2rem);
   font-size: clamp(1rem, 2vw, 1.1rem);

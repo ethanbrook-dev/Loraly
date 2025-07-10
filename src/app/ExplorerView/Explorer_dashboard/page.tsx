@@ -133,7 +133,6 @@ export default function ExplorerDashboard() {
               if (!user || !selectedLora) return;
 
               const deletedFromUser = await deleteSharedLORAFromUser(user.id, selectedLora.id);
-              const deletedPic = await deleteSharedLORAPicFromStorage(selectedLora.shared_pic_url);
 
               if (deletedFromUser) {
                 // Update UI

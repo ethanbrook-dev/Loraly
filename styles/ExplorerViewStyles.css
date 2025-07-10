@@ -70,7 +70,7 @@
   flex-direction: column;
   justify-content: center;
 }
-
+ 
 /* LoRA name */
 .lora-name {
   font-size: 1.2rem;
@@ -143,3 +143,74 @@
   }
 }
 
+/* Modal overlay: full screen, centered, dark translucent background */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.5); /* semi-transparent black */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000; /* on top of everything */
+}
+
+/* Modal content: white box with padding and rounded corners */
+.modal-content {
+  background-color: white;
+  padding: 1.5rem 2rem;
+  border-radius: 8px;
+  max-width: 90vw;
+  width: 350px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  text-align: center;
+  font-family: Arial, sans-serif;
+}
+
+/* Paragraph inside modal */
+.modal-content p {
+  margin-bottom: 1.5rem;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+/* Buttons container: side-by-side with gap */
+.modal-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+}
+
+/* Confirm button: red background */
+.confirm-button {
+  background-color: #e53e3e; /* red */
+  color: white;
+  border: none;
+  padding: 0.5rem 1.25rem;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background-color 0.2s ease;
+}
+
+.confirm-button:hover {
+  background-color: #c53030; /* darker red on hover */
+}
+
+/* Cancel button: neutral gray background */
+.cancel-button {
+  background-color: #a0aec0; /* gray */
+  color: white;
+  border: none;
+  padding: 0.5rem 1.25rem;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background-color 0.2s ease;
+}
+
+.cancel-button:hover {
+  background-color: #718096; /* darker gray on hover */
+}

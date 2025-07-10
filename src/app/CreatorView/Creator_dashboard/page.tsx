@@ -248,7 +248,6 @@ export default function CreatorDashboard() {
                           <p className="generating-voice-text">Generating Voice ...</p>
                         )}
                         {isTrainingCompleted && (
-
                           <button
                             className="share-button"
                             onClick={() => router.push(`../../../CreatorView/ShareLora/${lora.id}/${lora.name}`)}
@@ -264,19 +263,10 @@ export default function CreatorDashboard() {
                         ) : (
                           <>
                             <button
-                              className="record-more-button"
-                              onClick={() => {
-                                setLoadingLoraIDs(prev => ({ ...prev, [lora.id]: true }));
-                                router.push(`../../../CreatorView/Creator_recordings/${lora.id}`);
-                              }}
-                            >
-                              Record for this Voice
-                            </button>
-                            <button
                               className="upload-chat-file-button"
-                              onClick={() => router.push('../../../CreatorView/UploadChatFileInstructions')}
+                              onClick={() => router.push(`../../../CreatorView/uploadWhatsappChat`)}
                             >
-                              Upload Completed Chat File
+                              Upload WhatsApp Chat
                             </button>
                             <button
                               className="generate-voice-button"
@@ -287,7 +277,7 @@ export default function CreatorDashboard() {
                             {errorLoraId === lora.id && (
                               <p className="error-message">
                                 This voice needs <br />
-                                more recordings before <br />
+                                more chat messages before <br />
                                 it can be generated.
                               </p>
                             )}

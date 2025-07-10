@@ -102,7 +102,7 @@
   transition: transform 0.2s;
 }
 
-.search-user-card:hover {
+.search-user-card:hover { 
   transform: scale(1.02);
 }
 

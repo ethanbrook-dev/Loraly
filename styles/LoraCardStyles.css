@@ -1,4 +1,4 @@
-.lora-card {
+.lora-card { 
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -83,6 +83,41 @@
   background: linear-gradient(90deg, #1565c0, #1e88e5);
   transform: scale(1.03);
   outline: none;
+}
+
+.upload-chat-file-button {
+  width: 100%;
+  background: #388e3c !important; /* solid green */
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.95em;
+  padding: 0.6em 1.2em;
+  border: none;
+  border-radius: 9999px; /* pill shape */
+  cursor: pointer;
+  box-shadow: 0 0.3rem 0.6rem rgba(0, 0, 0, 0.15);
+  transition: background 0.25s ease, transform 0.1s ease;
+  user-select: none;
+}
+
+.upload-chat-file-button:hover,
+.upload-chat-file-button:focus {
+  background: linear-gradient(90deg, #b71c1c, #1565c0);
+  transform: scale(1.03);
+  outline: none;
+}
+
+.upload-chat-file-button:active {
+  background: linear-gradient(90deg, #8b1212, #0d3a65);
+  box-shadow: none;
+  transform: translateY(1px);
+}
+
+.upload-chat-file-button:disabled {
+  background-color: #a0c1f7 !important;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
 }
 
 .delete-button {
