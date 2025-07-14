@@ -17,6 +17,7 @@ import {
 // Components imports
 import ProfilePicture_lora from '../../components/ProfilePicture_Lora';
 import UserHeader from '../../components/UserHeader';
+import UploadWhatsappChat from '../uploadWhatsappChat/page';
 
 // Constants imports
 import { MIN_WORDS_FOR_LORA_GEN } from '../../constants/MIN_WORDS_FOR_LORA_GEN';
@@ -66,9 +67,7 @@ export default function CreatorDashboard() {
   const [userId, setUserId] = useState<string | null>(null);
 
   const [loadingLoraIDs, setLoadingLoraIDs] = useState<Record<string, boolean>>({});
-  const [errorLoraId, setErrorLoraId] = useState<string | null>(null);
-
-  const [trainingMessage, setTrainingMessage] = useState<string | null>(null);
+  const [uploadingLoraId, setUploadingLoraId] = useState<string | null>(null);
 
   // Fetch user profile
   useEffect(() => {
@@ -128,75 +127,9 @@ export default function CreatorDashboard() {
     }
   };
 
-  const handleGenerateVoice = async (loraId: string) => {
-    if (loadingLoraIDs[loraId]) return; // 🚫 Prevent double clicking
-    setLoadingLoraIDs(prev => ({ ...prev, [loraId]: true }));
-
-    const returnTime = 2000; // 2 seconds buffer
-
-    try {
-      // Fetch audio_files for this LoRA
-      const audio_files = loras.find((lora) => lora.id === loraId)?.audio_files || [];
-
-      if (audio_files.length === 0) {
-        setErrorLoraId(loraId);
-        setLoadingLoraIDs((prev) => ({ ...prev, [loraId]: false }));
-        setTimeout(() => setErrorLoraId(null), returnTime);
-        return;
-      }
-
-      // 🔍 First, we count total words
-      const totalWords = audio_files.reduce((sum: number, file: { text: string }) => {
-        if (file?.text) {
-          const wordCount = file.text.trim().split(/\s+/).length;
-          return sum + wordCount;
-        }
-        return sum;
-      }, 0);
-
-      // ❌ Not enough text — show message
-      if (totalWords < MIN_WORDS_FOR_LORA_GEN) {
-        setErrorLoraId(loraId);
-        setLoadingLoraIDs((prev) => ({ ...prev, [loraId]: false }));
-        setTimeout(() => setErrorLoraId(null), returnTime);
-        return;
-      }
-
-      // ✅ Enough words — now join everything
-      const fullText = audio_files
-        .map((file: { text: string }) => file.text?.trim())
-        .filter(Boolean)
-        .join(' ');
-
-      setLoras((prev) =>
-        prev.map((lora) =>
-          lora.id === loraId ? { ...lora, training_status: LoraStatus.TRAINING } : lora
-        )
-      );
-
-      const res = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_BACKEND_URL}/generate-voice`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          loraId,
-          rawText: fullText,
-        }),
-      });
-
-      if (res.ok) {
-        router.push('../../../CreatorView/TrainingStartedPage') // Redirect to a page indicating training has started
-      } else {
-        setTrainingMessage("Voice generation could not be started at this time. Please try again later.");
-      }
-
-    } catch (err) {
-      console.error("Unexpected error:", err);
-      setErrorLoraId(loraId);
-      setTimeout(() => setErrorLoraId(null), returnTime);
-    } finally {
-      setLoadingLoraIDs((prev) => ({ ...prev, [loraId]: false }));
-    }
-  };
+  if (uploadingLoraId) {
+    return <UploadWhatsappChat loraId={uploadingLoraId} />;
+  }
 
   return (
     <main className="creator-dashboard">
@@ -206,10 +139,6 @@ export default function CreatorDashboard() {
         profilePicUrl={userProfilePicUrl}
         onBackClick={() => router.push('../../../RoleSelect')}
       />
-
-      {trainingMessage && (
-        <p className="training-message">{trainingMessage}</p>
-      )}
 
       <section className="creator-voice-section">
         {loras.length === 0 ? (
@@ -264,23 +193,10 @@ export default function CreatorDashboard() {
                           <>
                             <button
                               className="upload-chat-file-button"
-                              onClick={() => router.push(`../../../CreatorView/uploadWhatsappChat`)}
+                              onClick={() => setUploadingLoraId(lora.id)}
                             >
                               Upload WhatsApp Chat
                             </button>
-                            <button
-                              className="generate-voice-button"
-                              onClick={() => handleGenerateVoice(lora.id)}
-                            >
-                              Generate Voice
-                            </button>
-                            {errorLoraId === lora.id && (
-                              <p className="error-message">
-                                This voice needs <br />
-                                more chat messages before <br />
-                                it can be generated.
-                              </p>
-                            )}
                           </>
                         )}
                       </>

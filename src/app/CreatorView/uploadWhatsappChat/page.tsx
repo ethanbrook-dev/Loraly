@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import JSZip from 'jszip';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { MIN_WORDS_FOR_LORA_GEN } from '@/app/constants/MIN_WORDS_FOR_LORA_GEN';
 import '../../../../styles/uploadChatHistory.css';
 
 interface Message {
@@ -14,13 +16,20 @@ interface Entry {
   output: string;
 }
 
-export default function UploadWhatsappChat() {
+interface UploadWhatsappChatProps {
+  loraId: string | null;
+}
+
+export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) {
+  const router = useRouter();
+
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [participants, setParticipants] = useState<string[]>([]);
   const [selectedParticipant, setSelectedParticipant] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [allMessages, setAllMessages] = useState<Message[]>([]);
+  const [generating, setGenerating] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
@@ -40,72 +49,61 @@ export default function UploadWhatsappChat() {
   };
 
   const parseZipFile = async (zipFile: File) => {
-  setLoading(true);
-  try {
-    const zip = await JSZip.loadAsync(zipFile);
-    const chatFileName = Object.keys(zip.files).find(name =>
-      name.toLowerCase().endsWith('_chat.txt')
-    );
-    if (!chatFileName) {
-      setError("No '_chat.txt' file found in the zip.");
-      setLoading(false);
-      return;
-    }
-
-    const chatText = await zip.files[chatFileName].async('text');
-    const lines = chatText.split(/\r?\n/);
-
-    // Matches: [MM/DD/YY, HH:mm:ss] Name: message
-    const messageRegex = /^\[(\d{1,2}\/\d{1,2}\/\d{2,4}), \d{1,2}:\d{2}:\d{2}\] (.*?): (.*)$/;
-
-    const uniqueNames = new Set<string>();
-    const tempMessages: Message[] = [];
-
-    for (const line of lines) {
-      const match = line.match(messageRegex);
-      if (!match) continue;
-
-      let name = match[2].trim().replace(/\u200E/g, '');  // remove invisible LTR marks
-      let message = match[3].trim().replace(/\u200E/g, '');
-
-      // Skip lines with only system messages or empty content
-      if (
-        message === 'Messages and calls are end-to-end encrypted. Only people in this chat can read, listen to, or share them.' ||
-        message === 'image omitted' ||
-        message === '‎You pinned a message' ||
-        message === ''
-      ) {
-        continue;
+    setLoading(true);
+    try {
+      const zip = await JSZip.loadAsync(zipFile);
+      const chatFileName = Object.keys(zip.files).find(name =>
+        name.toLowerCase().endsWith('_chat.txt')
+      );
+      if (!chatFileName) {
+        setError("No '_chat.txt' file found in the zip.");
+        setLoading(false);
+        return;
       }
 
-      // Skip WhatsApp's "You" placeholder (your own messages)
-      if (name === 'You') continue;
+      const chatText = await zip.files[chatFileName].async('text');
+      const lines = chatText.split(/\r?\n/);
 
-      uniqueNames.add(name);
-      tempMessages.push({ name, message });
+      const messageRegex = /^\[(\d{1,2}\/\d{1,2}\/\d{2,4}), \d{1,2}:\d{2}:\d{2}\] (.*?): (.*)$/;
+      const uniqueNames = new Set<string>();
+      const tempMessages: Message[] = [];
+
+      for (const line of lines) {
+        const match = line.match(messageRegex);
+        if (!match) continue;
+
+        let name = match[2].trim().replace(/\u200E/g, '');
+        let message = match[3].trim().replace(/\u200E/g, '');
+
+        if (
+          message === '' ||
+          message === 'image omitted' ||
+          message.startsWith('Messages and calls are end-to-end encrypted') ||
+          name === 'You'
+        ) continue;
+
+        uniqueNames.add(name);
+        tempMessages.push({ name, message });
+      }
+
+      setAllMessages(tempMessages);
+      setParticipants(Array.from(uniqueNames));
+      setError(null);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to parse the WhatsApp .zip file.');
+    } finally {
+      setLoading(false);
     }
+  };
 
-    setAllMessages(tempMessages);
-    console.log("all messages I got are:", tempMessages);
-    setParticipants(Array.from(uniqueNames));
-    setError(null);
-  } catch (err) {
-    console.error(err);
-    setError('Failed to parse the WhatsApp .zip file.');
-  } finally {
-    setLoading(false);
-  }
-};
-
-  const handleConfirm = () => {
-    if (!selectedParticipant) {
-      setError('Please select your name from the list.');
+  const handleConfirm = async () => {
+    if (!selectedParticipant || !loraId) {
+      setError('Please select your name and ensure LoRA ID is present.');
       return;
     }
-    setError(null);
 
     const entries: Entry[] = [];
-
     let inputBuffer: string[] = [];
 
     for (const msg of allMessages) {
@@ -122,8 +120,47 @@ export default function UploadWhatsappChat() {
       }
     }
 
-    console.log('Entries for LoRA input/output:', entries);
-    alert(`Parsed ${entries.length} input-output pairs for user ${selectedParticipant}. Check console.`);
+    const fullText = entries
+      .map(e => `[INST] ${e.input.trim()} [/INST] ${e.output.trim()}`)
+      .join('\n')
+      .trim();
+
+    const wordCount = entries.reduce((sum, e) => {
+      const inputWords = e.input.trim().split(/\s+/).length;
+      const outputWords = e.output.trim().split(/\s+/).length;
+      return sum + inputWords + outputWords;
+    }, 0);
+
+    if (wordCount < MIN_WORDS_FOR_LORA_GEN) {
+      setError(`Not enough text. You need at least ${MIN_WORDS_FOR_LORA_GEN} words.`);
+      return;
+    }
+
+    router.push('../../../CreatorView/TrainingStartedPage');
+    return;
+
+    // try {
+    //   setGenerating(true);
+    //   const res = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_BACKEND_URL}/generate-voice`, {
+    //     method: 'POST',
+    //     headers: { 'Content-Type': 'application/json' },
+    //     body: JSON.stringify({
+    //       loraId,
+    //       rawText: fullText,
+    //     }),
+    //   });
+
+    //   if (res.ok) {
+    //     router.push('../../../CreatorView/TrainingStartedPage');
+    //   } else {
+    //     setError('Voice generation failed. Please try again.');
+    //   }
+    // } catch (err) {
+    //   console.error(err);
+    //   setError('Unexpected error during voice generation.');
+    // } finally {
+    //   setGenerating(false);
+    // }
   };
 
   return (
@@ -145,9 +182,8 @@ export default function UploadWhatsappChat() {
       <section className="upload-section">
         <input className="file-input" type="file" accept=".zip" onChange={handleFileChange} />
         {error && <p className="error-message">{error}</p>}
+        {loading && <p className="loading-message">Reading file...</p>}
       </section>
-
-      {loading && <p className="loading-message">Reading file...</p>}
 
       {participants.length > 0 && (
         <section className="participants-section">
@@ -172,9 +208,9 @@ export default function UploadWhatsappChat() {
           <button
             className="confirm-button"
             onClick={handleConfirm}
-            disabled={!selectedParticipant}
+            disabled={generating}
           >
-            Confirm
+            {generating ? 'Generating Voice...' : 'Confirm & Generate Voice'}
           </button>
         </section>
       )}
