@@ -132,35 +132,32 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
     }, 0);
 
     if (wordCount < MIN_WORDS_FOR_LORA_GEN) {
-      setError(`Not enough text. You need at least ${MIN_WORDS_FOR_LORA_GEN} words.`);
+      setError(`Not enough text. You need at least ${MIN_WORDS_FOR_LORA_GEN} words. You have ${wordCount} words so far.`);
       return;
     }
 
-    router.push('../../../CreatorView/TrainingStartedPage');
-    return;
+    try {
+      setGenerating(true);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_BACKEND_URL}/generate-voice`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          loraId,
+          rawText: fullText,
+        }),
+      });
 
-    // try {
-    //   setGenerating(true);
-    //   const res = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_BACKEND_URL}/generate-voice`, {
-    //     method: 'POST',
-    //     headers: { 'Content-Type': 'application/json' },
-    //     body: JSON.stringify({
-    //       loraId,
-    //       rawText: fullText,
-    //     }),
-    //   });
-
-    //   if (res.ok) {
-    //     router.push('../../../CreatorView/TrainingStartedPage');
-    //   } else {
-    //     setError('Voice generation failed. Please try again.');
-    //   }
-    // } catch (err) {
-    //   console.error(err);
-    //   setError('Unexpected error during voice generation.');
-    // } finally {
-    //   setGenerating(false);
-    // }
+      if (res.ok) {
+        router.push('../../../CreatorView/TrainingStartedPage');
+      } else {
+        setError('Voice generation failed. Please try again.');
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Unexpected error during voice generation.');
+    } finally {
+      setGenerating(false);
+    }
   };
 
   return (
