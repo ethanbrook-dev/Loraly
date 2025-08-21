@@ -9,11 +9,7 @@ import '../../../../styles/uploadChatHistory.css';
 interface Message {
   name: string;
   message: string;
-}
-
-interface Entry {
-  input: string;
-  output: string;
+  timestamp: Date;
 }
 
 interface UploadWhatsappChatProps {
@@ -55,6 +51,7 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
       const chatFileName = Object.keys(zip.files).find(name =>
         name.toLowerCase().endsWith('_chat.txt')
       );
+
       if (!chatFileName) {
         setError("No '_chat.txt' file found in the zip.");
         setLoading(false);
@@ -64,7 +61,8 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
       const chatText = await zip.files[chatFileName].async('text');
       const lines = chatText.split(/\r?\n/);
 
-      const messageRegex = /^\[(\d{1,2}\/\d{1,2}\/\d{2,4}), \d{1,2}:\d{2}:\d{2}\] (.*?): (.*)$/;
+      const messageRegex = /^\[(\d{1,2}\/\d{1,2}\/\d{2,4}), (\d{1,2}:\d{2}:\d{2})\] (.*?): (.*)$/;
+
       const uniqueNames = new Set<string>();
       const tempMessages: Message[] = [];
 
@@ -72,18 +70,16 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
         const match = line.match(messageRegex);
         if (!match) continue;
 
-        let name = match[2].trim().replace(/\u200E/g, '');
-        let message = match[3].trim().replace(/\u200E/g, '');
+        const datePart = match[1];
+        const timePart = match[2];
+        const name = match[3].trim().replace(/\u200E/g, '');
+        const message = match[4].trim().replace(/\u200E/g, '');
 
-        if (
-          message === '' ||
-          message === 'image omitted' ||
-          message.startsWith('Messages and calls are end-to-end encrypted') ||
-          name === 'You'
-        ) continue;
+        if (!message || message === 'image omitted' || message.startsWith('Messages and calls are end-to-end encrypted') || name === 'You') continue;
 
+        const timestamp = new Date(`${datePart} ${timePart}`);
         uniqueNames.add(name);
-        tempMessages.push({ name, message });
+        tempMessages.push({ name, message, timestamp });
       }
 
       setAllMessages(tempMessages);
@@ -103,62 +99,92 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
       return;
     }
 
-    const entries: Entry[] = [];
-    let inputBuffer: string[] = [];
+    const MAX_GAP_HOURS = 1; // split if gap > 1 hour
 
-    for (const msg of allMessages) {
-      if (msg.name !== selectedParticipant) {
-        inputBuffer.push(msg.message);
-      } else {
-        if (inputBuffer.length > 0) {
-          entries.push({
-            input: inputBuffer.join(' '),
-            output: msg.message,
-          });
-          inputBuffer = [];
-        }
+    // sort messages by timestamp
+    const sortedMessages = [...allMessages].sort(
+      (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
+    );
+
+    const conversationBlocks: string[] = [];
+    let currentBlock: string[] = [];
+    let lastTimestamp: Date | null = null;
+
+    let lastAddedLine: string | null = null;
+
+    for (const msg of sortedMessages) {
+      const speaker = msg.name === selectedParticipant ? 'User' : 'Assistant';
+      const line = `${speaker}: ${msg.message}`;
+
+      // skip if it's exactly the same as the last added line
+      if (line === lastAddedLine) continue;
+
+      let startNewBlock = false;
+      if (lastTimestamp) {
+        const diffHours = (msg.timestamp.getTime() - lastTimestamp.getTime()) / 1000 / 3600;
+        if (diffHours > MAX_GAP_HOURS) startNewBlock = true;
       }
+
+      if (startNewBlock) {
+        if (currentBlock.length > 0) {
+          conversationBlocks.push(currentBlock.join('\n'));
+        }
+        currentBlock = [];
+      }
+
+      currentBlock.push(line);
+      lastAddedLine = line;
+      lastTimestamp = msg.timestamp;
     }
 
-    const fullText = entries
-      .map(e => `[INST] ${e.input.trim()} [/INST] ${e.output.trim()}`)
-      .join('\n')
-      .trim();
+    if (currentBlock.length > 0) {
+      conversationBlocks.push([...currentBlock].join('\n'));
 
-    const wordCount = entries.reduce((sum, e) => {
-      const inputWords = e.input.trim().split(/\s+/).length;
-      const outputWords = e.output.trim().split(/\s+/).length;
-      return sum + inputWords + outputWords;
-    }, 0);
-
-    if (wordCount < MIN_WORDS_FOR_LORA_GEN) {
-      setError(`Not enough text. You need at least ${MIN_WORDS_FOR_LORA_GEN} words. You have ${wordCount} words so far.`);
-      return;
-    }
-
-    try {
-      setGenerating(true);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_BACKEND_URL}/generate-voice`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          loraId,
-          rawText: fullText,
-        }),
+      // Count words
+      let wordCount = 0;
+      conversationBlocks.forEach(block => {
+        const lines = block.split('\n');
+        lines.forEach(line => {
+          const msgText = line.replace(/^(User|Assistant):\s*/, '');
+          wordCount += msgText.split(/\s+/).filter(Boolean).length;
+        });
       });
 
-      if (res.ok) {
-        router.push('../../../CreatorView/TrainingStartedPage');
-      } else {
-        setError('Voice generation failed. Please try again.');
+      console.log('Total word count:', wordCount);
+
+      const fullText = conversationBlocks.map(block => JSON.stringify({ text: block })).join('\n');
+
+      if (wordCount < MIN_WORDS_FOR_LORA_GEN) {
+        const proceed = window.confirm(
+          `You have ${wordCount} words.\nRecommended minimum: ${MIN_WORDS_FOR_LORA_GEN} words.\n\nDo you want to go ahead and generate the voice anyway?`
+        );
+        if (!proceed) return;
       }
-    } catch (err) {
-      console.error(err);
-      setError('Unexpected error during voice generation.');
-    } finally {
-      setGenerating(false);
-    }
-  };
+
+      try {
+        setGenerating(true);
+        const res = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_BACKEND_URL}/generate-voice`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            loraId,
+            rawText: fullText,
+          }),
+        });
+
+        if (res.ok) {
+          router.push('../../../CreatorView/TrainingStartedPage');
+        } else {
+          setError('Voice generation failed. Please try again.');
+        }
+      } catch (err) {
+        console.error(err);
+        setError('Unexpected error during voice generation.');
+      } finally {
+        setGenerating(false);
+      }
+    };
+  }
 
   return (
     <main className="upload-chat-file-page">
