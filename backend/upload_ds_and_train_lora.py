@@ -43,7 +43,7 @@ def upload_ds_and_train_lora(lora_id: str, dataset_file_path: str):
         if upload_dataset(api, dataset_repo_id, dataset_file_path):
             training_successfull, pod_id = start_training_pipeline(lora_id, dataset_repo_id)
             if training_successfull:
-                add_created_lora_to_user(lora_id) # ✅ Add the LoRA to the creator’s profile in Supabase
+                add_created_lora_to_user(lora_id) # Add the LoRA to the creator’s profile in Supabase
                 update_lora_status(lora_id, LoraStatus.TRAINING_COMPLETED)
             else:
                 update_lora_status(lora_id, LoraStatus.TRAINING_FAILED)
