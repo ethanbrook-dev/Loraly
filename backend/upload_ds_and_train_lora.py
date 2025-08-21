@@ -90,13 +90,16 @@ def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> tuple[bool, s
     print("⏳ Waiting for model to appear on HF...")
 
     max_hours = 24 # Allow a full day of training till timeout
-    hours_to_wait = 2
-    seconds_to_wait = hours_to_wait * 3600  # 7200 seconds = 2 hours
+    
+    hours_to_wait = 0.25  # check every 15 mins
+    seconds_to_wait = hours_to_wait * 3600  # 900 seconds
     count = 0
 
     while count * hours_to_wait < max_hours:
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # current timestamp
+
         if check_lora_model_uploaded(lora_id):
-            print("✅ LoRA model found on HF.")
+            print(f"✅ LoRA model found on HF.")
             
             training_end = datetime.now()
             duration = training_end - training_start
@@ -104,8 +107,9 @@ def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> tuple[bool, s
             
             print(f"🕒 LoRA took {hours:.2f} hours to train.")
             return True, pod_id
+
+        print(f"---\nIt is {now} \n ⚙️ LoRA still not uploaded. \n Will check again in {hours_to_wait} hours.\n---")
         
-        print(f"⚙️ LoRA has been training for {count * hours_to_wait} hours now.")
         time.sleep(seconds_to_wait)
         count += 1
 
@@ -251,6 +255,8 @@ def cleanup(temp_path: str, api: HfApi, dataset_repo_id: str, lora_id: str):
 
 def check_lora_model_uploaded(lora_id: str) -> bool:
     model_repo_id = f"{os.getenv('HF_USERNAME')}/{lora_id}-model" # DO NOT CHANGE THIS -> the docker image will create this repo
+    print(f"🔍 Checking if LoRA model {model_repo_id} exists on HuggingFace...")
+    
     api = HfApi(token=os.getenv('HF_TOKEN'))
 
     try:
@@ -273,7 +279,7 @@ def delete_pod(pod_id: str):
 
     try:
         response = requests.delete(url, headers=headers)
-        if response.status_code == 200:
+        if response.status_code in (200, 204):
             print(f"🗑️ Pod deleted successfully: {pod_id}")
         else:
             print(f"⚠️ Failed to delete pod: {response.status_code} - {response.text}")
