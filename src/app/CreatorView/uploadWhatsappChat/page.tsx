@@ -95,7 +95,7 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
 
   const handleConfirm = async () => {
     if (!selectedParticipant || !loraId) {
-      setError('Please select your name and ensure LoRA ID is present.');
+      setError('Please select your name.');
       return;
     }
 
