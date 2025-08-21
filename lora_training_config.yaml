@@ -5,9 +5,26 @@ dataset_processes: 4  # reduced to lower RAM overhead
 
 datasets:
   - path: --DATASET_REPO_ID--
-    type: completion
-    field: text
-    trust_remote_code: false
+    type: chat_template
+    chat_template: chatml
+    field_messages: messages
+    message_property_mappings:
+      role: role
+      content: content
+    roles:
+      assistant:
+        - assistant
+        - model
+        - gpt
+      user:
+        - user
+        - human
+    roles_to_train: ["assistant"]
+    train_on_eos: "turn"
+
+special_tokens:
+  eos_token: <|im_end|>
+  bos_token: <|im_start|>
 
 gradient_accumulation_steps: 2  # slower but safer for memory
 gradient_checkpointing: true    # saves memory by not storing activations
