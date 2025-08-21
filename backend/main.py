@@ -136,9 +136,9 @@ def remove_all_unicode_except_ascii(text: str) -> str:
 def text_to_axolotl_json(raw_text: str) -> str:
     """
     Convert raw JSONL conversation text into Axolotl format.
-    Each line in raw_text should be a JSON object with a "text" key.
+    Returns a JSONL string where each line is a separate sample with a `messages` list.
     """
-    messages = []
+    conversation_jsonl = []
 
     for line in raw_text.strip().splitlines():
         if not line.strip():
@@ -149,11 +149,11 @@ def text_to_axolotl_json(raw_text: str) -> str:
             text = clean_unicode(text)
             text = remove_all_unicode_except_ascii(text)
 
-            # Split into turns by 'User:' or 'Assistant:' using re.findall
-            # Each match is a tuple of (role, content)
+            # Split into turns by 'User:' or 'Assistant:'
             pattern = r"(User|Assistant):\s*(.*?)(?=(User|Assistant):|$)"
             matches = re.findall(pattern, text, flags=re.DOTALL)
 
+            messages = []
             for match in matches:
                 role_label = match[0].lower()
                 content = match[1].strip()
@@ -161,7 +161,12 @@ def text_to_axolotl_json(raw_text: str) -> str:
                 if content:
                     messages.append({"role": role, "content": content})
 
+            if messages:
+                # Each conversation block becomes one JSONL line
+                conversation_jsonl.append(json.dumps({"messages": messages}, ensure_ascii=False))
+
         except json.JSONDecodeError:
             print(f"⚠️ Could not decode line: {line[:80]}...")
 
-    return json.dumps({"messages": messages}, ensure_ascii=False, indent=2)
+    # Join all conversation blocks with newline to produce valid JSONL
+    return "\n".join(conversation_jsonl)
