@@ -71,7 +71,7 @@ async def chat(request: Request) -> JSONResponse:
         traceback.print_exc()
         return JSONResponse({"error": str(e)}, status_code=500)
 
-# ------------------------------------------------- GENERATING VOICE API ------------------------------------------------- #
+# ------------------------------------------------- GENERATING VOICE ------------------------------------------------- #
 @app.post("/generate-voice")
 async def generate_voice(request: Request, background_tasks: BackgroundTasks):
     print("🧠 In the backend ... training voice ...")
@@ -80,7 +80,7 @@ async def generate_voice(request: Request, background_tasks: BackgroundTasks):
     lora_id = data.get("loraId")
     text = data.get("rawText")
 
-    jsonl_str = text_to_jsonl_string(text)
+    jsonl_str = text_to_axolotl_json(text)
 
     with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".jsonl", encoding="utf-8") as temp_file:
         temp_file_path = temp_file.name
@@ -114,7 +114,7 @@ def clean_unicode(text: str) -> str:
         "—": "-",     # em dash
         "…": "...",   # ellipsis
         "•": "-",     # bullet
-        " ": " ",     # narrow no-break space
+        " ": " ",     # narrow no-break space
         "\u00A0": " ",  # non-breaking space
     }
 
@@ -128,25 +128,40 @@ def clean_unicode(text: str) -> str:
     return text
 
 def remove_all_unicode_except_ascii(text: str) -> str:
+    # Remove emojis and all other non-ASCII characters
     return text.encode("ascii", errors="ignore").decode()
-
-def check_for_unicode(text: str) -> list:
     """Returns a list of all non-ASCII characters in the string"""
     return [char for char in set(text) if ord(char) > 127]
 
-def text_to_jsonl_string(raw_text: str) -> str:
-    cleaned_text = clean_unicode(raw_text)
+def text_to_axolotl_json(raw_text: str) -> str:
+    """
+    Convert raw JSONL conversation text into Axolotl format.
+    Each line in raw_text should be a JSON object with a "text" key.
+    """
+    messages = []
 
-    # Remove all non-ASCII:
-    cleaned_text = remove_all_unicode_except_ascii(cleaned_text)
+    for line in raw_text.strip().splitlines():
+        if not line.strip():
+            continue
+        try:
+            obj = json.loads(line)
+            text = obj.get("text", "").strip()
+            text = clean_unicode(text)
+            text = remove_all_unicode_except_ascii(text)
 
-    # Optional: Check for leftovers
-    leftovers = check_for_unicode(cleaned_text)
-    if leftovers:
-        print(f"⚠️ Warning: Unicode characters still present: {leftovers}")
+            # Split into turns by 'User:' or 'Assistant:' using re.findall
+            # Each match is a tuple of (role, content)
+            pattern = r"(User|Assistant):\s*(.*?)(?=(User|Assistant):|$)"
+            matches = re.findall(pattern, text, flags=re.DOTALL)
 
-    # Sentence splitting
-    sentences = re.findall(r'[^.?!]+[.?!]', cleaned_text)
-    sentences = [s.strip() for s in sentences if s.strip()]
-    lines = [json.dumps({"text": sentence}, ensure_ascii=False) for sentence in sentences]
-    return "\n".join(lines)
+            for match in matches:
+                role_label = match[0].lower()
+                content = match[1].strip()
+                role = "user" if role_label == "user" else "assistant"
+                if content:
+                    messages.append({"role": role, "content": content})
+
+        except json.JSONDecodeError:
+            print(f"⚠️ Could not decode line: {line[:80]}...")
+
+    return json.dumps({"messages": messages}, ensure_ascii=False, indent=2)
