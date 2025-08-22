@@ -1,4 +1,4 @@
-# chat_with_lora.py is a script pushed to Modal 
+# chat_with_lora.py
 
 import modal
 from transformers import AutoTokenizer, AutoModelForCausalLM
@@ -7,39 +7,39 @@ import torch
 
 app = modal.App("mistral-lora-chat")
 
+# Persistent HF cache volume
 model_volume = modal.Volume.from_name("hf-cache", create_if_missing=True)
 
+# Modal image with dependencies
 image = (
     modal.Image.debian_slim()
-    .run_commands([
-        "apt-get update",
-        "apt-get install -y git build-essential cmake"
-    ])
+    .run_commands(["apt-get update", "apt-get install -y git build-essential cmake"])
     .pip_install("torch", "transformers", "accelerate", "peft", "sentencepiece")
 )
 
-# ✅ This class will stay alive between requests (no reloads per prompt)
 @app.cls(gpu="A100-80GB", image=image, timeout=900, volumes={"/cache": model_volume})
 class MistralChat:
-
     def load(self, hf_token: str):
-        print("🔄 Loading base model & tokenizer once per container...")
+        """Load tokenizer & base model once, resize embeddings, and cache LoRAs"""
+        
+        if getattr(self, "_model_loaded", False):
+            return
+        print("[DEBUG] Loading tokenizer and base model...")
 
-        # Load tokenizer
+        # Tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(
             "mistralai/Mistral-7B-Instruct-v0.3",
             token=hf_token,
             cache_dir="/cache"
         )
-        print(f"📌 Tokenizer loaded. Vocab size: {len(self.tokenizer)}")
+        print(f"[DEBUG] Tokenizer loaded. Original vocab size: {len(self.tokenizer)}")
 
-        # Add missing special tokens
-        special_tokens = {"eos_token": "<|im_end|>", "bos_token": "<|im_start|>"}
+        # Add special tokens
+        special_tokens = {"bos_token": "<|im_start|>", "eos_token": "<|im_end|>"}
         num_added = self.tokenizer.add_special_tokens(special_tokens)
-        print(f"🔑 Added {num_added} special tokens")
+        print(f"[DEBUG] Added {num_added} special tokens. New vocab size: {len(self.tokenizer)}")
 
-        # Load base model
-        print("🛠 Loading base model...")
+        # Base model
         self.base_model = AutoModelForCausalLM.from_pretrained(
             "mistralai/Mistral-7B-Instruct-v0.3",
             torch_dtype=torch.float16,
@@ -47,78 +47,57 @@ class MistralChat:
             token=hf_token,
             cache_dir="/cache"
         ).half().to("cuda")
-        print(f"✅ Base model loaded. Embedding size: {self.base_model.get_input_embeddings().weight.size(0)}")
 
-        # Ensure embeddings match tokenizer
-        print("📏 Resizing base model embeddings to match tokenizer...")
+        # Resize embeddings to match tokenizer
         self.base_model.resize_token_embeddings(len(self.tokenizer))
-        print(f"✅ Embeddings resized: {self.base_model.get_input_embeddings().weight.size(0)}")
+        print(f"[DEBUG] Base model loaded. Embedding size: {self.base_model.get_input_embeddings().weight.size(0)}")
 
         self.loaded_loras = {}
+        self._model_loaded = True
 
     def get_lora_model(self, hf_username: str, lora_id: str, hf_token: str):
-        print(f"🚀 Preparing LoRA model: {lora_id}")
-        model_repo_id = f"{hf_username}/{lora_id}-model"
-
+        """Load LoRA on top of base model, cache for reuse"""
         if lora_id in self.loaded_loras:
-            print(f"⚡ LoRA model {lora_id} already loaded, returning cached instance")
+            print(f"[DEBUG] LoRA {lora_id} already loaded, using cache")
             return self.loaded_loras[lora_id]
 
-        # Resize base embeddings just in case
-        vocab_size = len(self.tokenizer)
-        current_size = self.base_model.get_input_embeddings().weight.size(0)
-        print(f"📌 Base model vocab: {current_size}, tokenizer vocab: {vocab_size}")
-        if current_size != vocab_size:
-            print(f"📏 Resizing embeddings before loading LoRA: {current_size} -> {vocab_size}")
-            self.base_model.resize_token_embeddings(vocab_size)
+        model_repo_id = f"{hf_username}/{lora_id}-model"
+        print(f"[DEBUG] Loading LoRA {lora_id} from {model_repo_id}...")
 
-        # Load LoRA
         try:
-            print(f"⚡ Loading LoRA from {model_repo_id}...")
-            lora_model = PeftModel.from_pretrained(
-                self.base_model,
-                model_repo_id,
-                token=hf_token
-            )
-            print("✅ LoRA loaded successfully")
-
-            # Trim last 2 rows in embedding weights if mismatch
-            lora_vocab_size = lora_model.get_input_embeddings().weight.size(0)
-            if lora_vocab_size > vocab_size:
-                print(f"✂️ Trimming LoRA embeddings: {lora_vocab_size} -> {vocab_size}")
-                with torch.no_grad():
-                    for name, param in lora_model.named_parameters():
-                        if "embed_tokens" in name or "lm_head" in name:
-                            param.data = param.data[:vocab_size, :]
-                print("✅ LoRA embeddings trimmed successfully")
-
+            lora_model = PeftModel.from_pretrained(self.base_model, model_repo_id, token=hf_token)
+            print("[DEBUG] LoRA loaded successfully")
         except Exception as e:
-            print("❌ Failed to load LoRA")
-            raise RuntimeError(f"Failed to load LoRA model from {model_repo_id}: {e}")
+            raise RuntimeError(f"Failed to load LoRA {lora_id}: {e}")
+
+        # Ensure embeddings align
+        if lora_model.get_input_embeddings().weight.size(0) != len(self.tokenizer):
+            lora_model.resize_token_embeddings(len(self.tokenizer))
+            print(f"[DEBUG] Resized LoRA embeddings to {len(self.tokenizer)}")
 
         self.loaded_loras[lora_id] = lora_model
         return lora_model
 
     @modal.method()
     def chat_with_lora(self, hf_username: str, hf_token: str, lora_id: str, prompt: str) -> str:
-        print("💬 chat_with_lora called")
-        if not hasattr(self, "base_model") or not hasattr(self, "tokenizer"):
-            print("⚡ Base model or tokenizer not loaded, calling load()")
-            self.load(hf_token)
+        """Generate a response with base + LoRA model"""
+        print("[DEBUG] chat_with_lora called")
 
+        # Ensure model & tokenizer are loaded once
+        self.load(hf_token)
+
+        # Load or get cached LoRA
         lora_model = self.get_lora_model(hf_username, lora_id, hf_token)
 
         if not prompt.strip():
-            print("⚠️ Empty prompt received")
-            return "⚠️ Empty prompt provided."
+            print("[DEBUG] Empty prompt received")
+            return "[INFO] Empty prompt provided."
 
-        print("🧠 Formatting prompt...")
-        formatted = f"[INST] {prompt.strip()} [/INST]"
+        # Tokenize plain-text prompt
+        inputs = self.tokenizer(prompt.strip(), return_tensors="pt").to(lora_model.device)
 
-        print("🔢 Tokenizing...")
-        inputs = self.tokenizer(formatted, return_tensors="pt").to(lora_model.device)
-
-        print("🧪 Generating response...")
+        # Generate response
+        print("[DEBUG] Generating response...")
         with torch.no_grad():
             outputs = lora_model.generate(
                 **inputs,
@@ -129,9 +108,8 @@ class MistralChat:
                 pad_token_id=self.tokenizer.eos_token_id
             )
 
-        print("📝 Decoding output...")
-        output_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        reply = output_text.split("[/INST]")[-1].strip()
-        print(f"✅ Reply ready. Reply is \"{reply}\"")
+        # Decode
+        reply = self.tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
+        print(f"[INFO] Reply ready: {reply}")
 
         return reply
