@@ -4,13 +4,22 @@ import modal
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import PeftModel
 import torch
+import re
+from huggingface_hub import login
 
-app = modal.App("mistral-lora-chat")
+# ANSI color codes for debug outputs
+GREEN = "\033[92m"      # Success
+YELLOW = "\033[93m"     # Info
+RED = "\033[91m"        # Errors
+CYAN = "\033[96m"       # Highlights for sizes
+MAGENTA = "\033[95m"    # Warnings/mismatches
+BLUE = "\033[94m"       # Misc debug
+WHITE = "\033[97m"      # Additional info
+RESET = "\033[0m"
 
-# Persistent HF cache volume
+app = modal.App("phi2-lora-chat")
 model_volume = modal.Volume.from_name("hf-cache", create_if_missing=True)
 
-# Modal image with dependencies
 image = (
     modal.Image.debian_slim()
     .run_commands(["apt-get update", "apt-get install -y git build-essential cmake"])
@@ -18,98 +27,139 @@ image = (
 )
 
 @app.cls(gpu="A100-80GB", image=image, timeout=900, volumes={"/cache": model_volume})
-class MistralChat:
-    def load(self, hf_token: str):
-        """Load tokenizer & base model once, resize embeddings, and cache LoRAs"""
-        
+class Phi2Chat:
+
+    def load(self, model_repo: str, hf_token: str):
+        print(f"{YELLOW}[INFO] Logging in to Hugging Face Hub...{RESET}")
+        login(token=hf_token)
+        print(f"{GREEN}[SUCCESS] Logged in successfully{RESET}")
+
         if getattr(self, "_model_loaded", False):
+            print(f"{YELLOW}[INFO] Model already loaded, skipping...{RESET}")
             return
-        print("[DEBUG] Loading tokenizer and base model...")
 
-        # Tokenizer
+        # Load tokenizer
+        print(f"{YELLOW}[INFO] Loading tokenizer from repo {model_repo}...{RESET}")
         self.tokenizer = AutoTokenizer.from_pretrained(
-            "mistralai/Mistral-7B-Instruct-v0.3",
+            model_repo,
+            use_fast=True,
             token=hf_token,
-            cache_dir="/cache"
+            cache_dir="/cache",
+            trust_remote_code=False,
+            force_download=True
         )
-        print(f"[DEBUG] Tokenizer loaded. Original vocab size: {len(self.tokenizer)}")
+        print(f"{GREEN}[SUCCESS] Tokenizer loaded. Original vocab size: {len(self.tokenizer)}{RESET}")
 
-        # Add special tokens
-        special_tokens = {"bos_token": "<|im_start|>", "eos_token": "<|im_end|>"}
-        num_added = self.tokenizer.add_special_tokens(special_tokens)
-        print(f"[DEBUG] Added {num_added} special tokens. New vocab size: {len(self.tokenizer)}")
+        # Add missing special tokens
+        special_tokens = {"bos_token": "<|im_start|>", "eos_token": "<|im_end|>", "pad_token": "<|im_end|>"}
+        added = {}
+        for k, v in special_tokens.items():
+            if getattr(self.tokenizer, k) is None:
+                self.tokenizer.add_special_tokens({k: v})
+                added[k] = v
+        if added:
+            print(f"{GREEN}[INFO] Added missing special tokens: {added}. New vocab size: {len(self.tokenizer)}{RESET}")
+        else:
+            print(f"{GREEN}[INFO] All special tokens already present. No changes made.{RESET}")
 
-        # Base model
+        # Load base model WITHOUT resizing embeddings yet
+        print(f"{YELLOW}[INFO] Loading base model: {model_repo}...{RESET}")
         self.base_model = AutoModelForCausalLM.from_pretrained(
-            "mistralai/Mistral-7B-Instruct-v0.3",
+            model_repo,
             torch_dtype=torch.float16,
             device_map="auto",
             token=hf_token,
-            cache_dir="/cache"
+            cache_dir="/cache",
+            trust_remote_code=False,
+            force_download=True
         ).half().to("cuda")
-
-        # Resize embeddings to match tokenizer
-        self.base_model.resize_token_embeddings(len(self.tokenizer))
-        print(f"[DEBUG] Base model loaded. Embedding size: {self.base_model.get_input_embeddings().weight.size(0)}")
+        print(f"{GREEN}[SUCCESS] Base model loaded.{RESET}")
+        print(f"{BLUE}[DEBUG] Base model embedding matrix shape: {self.base_model.get_input_embeddings().weight.shape}{RESET}")
 
         self.loaded_loras = {}
         self._model_loaded = True
+        print(f"{GREEN}[INFO] Base model ready for LoRA loading.{RESET}")
 
-    def get_lora_model(self, hf_username: str, lora_id: str, hf_token: str):
-        """Load LoRA on top of base model, cache for reuse"""
-        if lora_id in self.loaded_loras:
-            print(f"[DEBUG] LoRA {lora_id} already loaded, using cache")
-            return self.loaded_loras[lora_id]
+    def get_lora_model(self, lora_repo: str, hf_token: str):
+        if lora_repo in self.loaded_loras:
+            print(f"{YELLOW}[INFO] LoRA {lora_repo} already loaded. Using cache.{RESET}")
+            return self.loaded_loras[lora_repo]
 
-        model_repo_id = f"{hf_username}/{lora_id}-model"
-        print(f"[DEBUG] Loading LoRA {lora_id} from {model_repo_id}...")
-
+        print(f"{YELLOW}[INFO] Loading LoRA from repo: {lora_repo}...{RESET}")
         try:
-            lora_model = PeftModel.from_pretrained(self.base_model, model_repo_id, token=hf_token)
-            print("[DEBUG] LoRA loaded successfully")
+            lora_model = PeftModel.from_pretrained(
+                self.base_model,
+                lora_repo,
+                token=hf_token
+            )
+            print(f"{GREEN}[SUCCESS] LoRA loaded successfully!{RESET}")
         except Exception as e:
-            raise RuntimeError(f"Failed to load LoRA {lora_id}: {e}")
+            print(f"{RED}[ERROR] Failed to load LoRA: {e}{RESET}")
+            raise RuntimeError(f"Failed to load LoRA {lora_repo}: {e}")
 
-        # Ensure embeddings align
-        if lora_model.get_input_embeddings().weight.size(0) != len(self.tokenizer):
-            lora_model.resize_token_embeddings(len(self.tokenizer))
-            print(f"[DEBUG] Resized LoRA embeddings to {len(self.tokenizer)}")
+        # Debug info about embeddings
+        base_emb = self.base_model.get_input_embeddings().weight.shape
+        lora_emb = lora_model.get_input_embeddings().weight.shape
+        print(f"{CYAN}[INFO] Base model embedding shape: {base_emb}{RESET}")
+        print(f"{CYAN}[INFO] LoRA embedding shape: {lora_emb}{RESET}")
 
-        self.loaded_loras[lora_id] = lora_model
+        # Resize tokenizer / embeddings AFTER LoRA if needed
+        tokenizer_size = len(self.tokenizer)
+        if tokenizer_size > lora_emb[0]:
+            print(f"{MAGENTA}[WARN] Tokenizer vocab ({tokenizer_size}) > LoRA vocab ({lora_emb[0]}). Resizing embeddings...{RESET}")
+            lora_model.resize_token_embeddings(tokenizer_size)
+            with torch.no_grad():
+                lora_model.get_input_embeddings().weight[:lora_emb[0], :] = self.base_model.get_input_embeddings().weight
+            print(f"{GREEN}[SUCCESS] Embeddings resized and overlapping weights copied.{RESET}")
+
+        print(f"{GREEN}[INFO] LoRA model ready for generation.{RESET}")
+        self.loaded_loras[lora_repo] = lora_model
         return lora_model
 
+    def format_chatml_user_prompt(self, user_prompt: str) -> str:
+        return (
+            "<|im_start|>user\n"
+            f"{user_prompt}<|im_end|>\n"
+            "<|im_start|>assistant\n"
+            "(Answer naturally in the same casual style, and also ask a follow-up question to keep the conversation going.)\n"
+        )
+    
     @modal.method()
-    def chat_with_lora(self, hf_username: str, hf_token: str, lora_id: str, prompt: str) -> str:
-        """Generate a response with base + LoRA model"""
-        print("[DEBUG] chat_with_lora called")
+    def chat_with_lora(self, base_model_repo: str, lora_repo: str, hf_token: str, prompt: str) -> str:
+        print(f"{YELLOW}[INFO] chat_with_lora called{RESET}")
 
-        # Ensure model & tokenizer are loaded once
-        self.load(hf_token)
-
-        # Load or get cached LoRA
-        lora_model = self.get_lora_model(hf_username, lora_id, hf_token)
+        self.load(base_model_repo, hf_token)
+        lora_model = self.get_lora_model(lora_repo, hf_token)
 
         if not prompt.strip():
-            print("[DEBUG] Empty prompt received")
+            print(f"{MAGENTA}[WARN] Empty prompt received{RESET}")
             return "[INFO] Empty prompt provided."
 
-        # Tokenize plain-text prompt
-        inputs = self.tokenizer(prompt.strip(), return_tensors="pt").to(lora_model.device)
+        print(f"{YELLOW}[INFO] Tokenizing prompt...{RESET}")
+        
+        fomatted_prompt = self.format_chatml_user_prompt(prompt)
+        inputs = self.tokenizer(fomatted_prompt.strip(), return_tensors="pt").to(lora_model.device)
 
-        # Generate response
-        print("[DEBUG] Generating response...")
+        print(f"{YELLOW}[INFO] Generating response...{RESET}")
         with torch.no_grad():
             outputs = lora_model.generate(
                 **inputs,
-                max_new_tokens=256,
-                temperature=0.7,
+                max_new_tokens=160,
+                temperature=0.4,
                 top_p=0.9,
                 do_sample=True,
-                pad_token_id=self.tokenizer.eos_token_id
+                repetition_penalty=1.2,
+                pad_token_id=self.tokenizer.eos_token_id,
+                eos_token_id=self.tokenizer.eos_token_id  # use tokenizer-defined EOS consistently
             )
 
-        # Decode
-        reply = self.tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
-        print(f"[INFO] Reply ready: {reply}")
+        # Slice off the input so only new tokens remain
+        generated_ids = outputs[0][inputs["input_ids"].shape[1]:]
 
+        reply = self.tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
+        
+        # Clean junk tokens like <@a>
+        reply = re.sub(r"<[@:].*?>", "", reply)
+        
+        print(f"{GREEN}[SUCCESS] Reply ready: {reply}{RESET}")
         return reply

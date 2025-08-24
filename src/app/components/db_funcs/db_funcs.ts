@@ -25,18 +25,11 @@ const LORAS_TABLE_STATUS_COL = 'training_status'; //status is updated in backend
 const LORA_PROFILE_PIC_BUCKET_NAME = 'lora-profile-pics';
 const SHARED_LORA_PIC_BUCKET = 'shared-lora-pics';
 
-type AudioFile = {
-    name: string;
-    text: string;
-    duration: number;
-};
-
 type Lora = {
     id: string;
     creator_id: string;
     name: string;
     profile_pic_url: string | null;
-    audio_files: AudioFile[];
     training_status: string;
 };
 
@@ -44,18 +37,6 @@ type SharedLora = {
     id: string;
     name: string,
     shared_pic_url: string;
-};
-
-type Recording = {
-    name: string;
-    duration: number;
-    text: string;
-};
-
-type VoiceData = {
-    id: string;
-    creator_id: string;
-    recordings: Recording[];
 };
 
 type ShareRecipient = {
@@ -351,7 +332,6 @@ export async function initLORA(
                 creator_id: userId,
                 name,
                 profile_pic_url: null,
-                audio_files: [],
                 training_status: 'untrained'
             }
         ])
@@ -392,18 +372,6 @@ export async function deleteLORA(lora: Lora): Promise<boolean> {
         .from(LORAS_TABLE_NAME)
         .delete()
         .eq(LORAS_TABLE_ID_COL, lora.id);
-
-    return !error;
-}
-
-export async function updateLORAAudioFiles(
-    updatedRecordings: Recording[],
-    voiceData: VoiceData | null,
-): Promise<boolean> {
-    const { error } = await supabase
-        .from(LORAS_TABLE_NAME)
-        .update({ audio_files: updatedRecordings })
-        .eq(LORAS_TABLE_ID_COL, voiceData?.id);
 
     return !error;
 }

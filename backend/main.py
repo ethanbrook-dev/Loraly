@@ -1,19 +1,23 @@
-# main.py - the entrypoint for the backend 
+# main.py - the entrypoint for the backend
 
+# Standard library imports
+import os
+import json
+import tempfile
+import re
+import unicodedata
+import traceback
+from contextlib import asynccontextmanager
+
+# Third-party imports (api, modal, etc)
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import os
-from dotenv import load_dotenv
+from huggingface_hub import HfApi
+import modal, asyncio
 
-# For training:
-import json, tempfile, re, unicodedata
-import os, asyncio
-from backend.upload_ds_and_train_lora import upload_ds_and_train_lora
-
-# For chatting:
-from contextlib import asynccontextmanager
-import modal
+# Local imports
+from backend.train_lora import train_lora
 
 app = FastAPI()
 
@@ -27,11 +31,18 @@ app.add_middleware(
 
 # Load environment variables
 env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env.local'))
-load_dotenv(dotenv_path=env_path)
+
+HF_TOKEN = os.getenv("HF_TOKEN")
+HF_USERNAME = os.getenv("HF_USERNAME")
+
+if not HF_TOKEN:
+    raise RuntimeError("❌ HF_TOKEN not found in environment. Please set it in .env.local")
+if not HF_USERNAME:
+    raise RuntimeError("❌ HF_USERNAME not found in environment. Please set it in .env.local")
 
 # ------------------------------------------------- CHATTING API ------------------------------------------------- #
 # 🔁 Correct way to hydrate class from deployed Modal App
-MistralChatCls = modal.Cls.from_name("mistral-lora-chat", "MistralChat")
+Phi2ChatCls = modal.Cls.from_name("phi2-lora-chat", "Phi2Chat")
 
 chat_worker = None
 
@@ -39,7 +50,7 @@ chat_worker = None
 async def lifespan(app: FastAPI):
     global chat_worker
     print("🔌 Connecting to Modal chat worker...")
-    chat_worker = MistralChatCls()  # This is the worker instance (proxy)
+    chat_worker = Phi2ChatCls()  # This is the worker instance (proxy)
     print(f"✔️  Connected to Modal chat worker: {chat_worker}")
     yield
     print("👋 Shutting down chat worker...")
@@ -58,15 +69,13 @@ async def chat(request: Request) -> JSONResponse:
     try:
         print("🚀 Sending prompt to Modal...")
         response = chat_worker.chat_with_lora.remote(
-            hf_username=os.getenv("HF_USERNAME"),
-            hf_token=os.getenv("HF_TOKEN"), 
-            lora_id=loraid, 
+            base_model_repo="microsoft/phi-2",                    # base model repo
+            lora_repo=f"{HF_USERNAME}/{loraid}-model",  # LoRA model repo
+            hf_token=HF_TOKEN,                        # HF token
             prompt=prompt
         )
-        response = response.replace(prompt, "").strip()
         return {"response": response}
     except Exception as e:
-        import traceback
         print("❌ ERROR GETTING RESPONSE")
         traceback.print_exc()
         return JSONResponse({"error": str(e)}, status_code=500)
@@ -80,6 +89,7 @@ async def generate_voice(request: Request, background_tasks: BackgroundTasks):
     lora_id = data.get("loraId")
     text = data.get("rawText")
 
+    # Convert to JSONL string
     jsonl_str = text_to_axolotl_json(text)
 
     with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".jsonl", encoding="utf-8") as temp_file:
@@ -87,7 +97,7 @@ async def generate_voice(request: Request, background_tasks: BackgroundTasks):
         temp_file.write(jsonl_str)
         temp_file.flush()
 
-    background_tasks.add_task(upload_ds_and_train_lora, lora_id, temp_file_path)
+    background_tasks.add_task(train_lora, lora_id, temp_file_path)
     background_tasks.add_task(delete_file_after_delay, temp_file_path, 10)
 
     return {

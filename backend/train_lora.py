@@ -32,7 +32,7 @@ env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env.l
 load_dotenv(dotenv_path=env_path)
 supabase = create_client(os.getenv('NEXT_PUBLIC_SUPABASE_URL'), os.getenv('SUPABASE_SERVICE_ROLE_KEY'))
 
-def upload_ds_and_train_lora(lora_id: str, dataset_file_path: str):
+def train_lora(lora_id: str,  dataset_file_path: str):
     dataset_repo_id = f"{os.getenv('HF_USERNAME')}/{lora_id}-dataset"
     api = HfApi(token=os.getenv('HF_TOKEN'))
     pod_id = None
@@ -40,44 +40,62 @@ def upload_ds_and_train_lora(lora_id: str, dataset_file_path: str):
     update_lora_status(lora_id, LoraStatus.TRAINING)
 
     try:
-        if upload_dataset(api, dataset_repo_id, dataset_file_path):
-            training_successfull, pod_id = start_training_pipeline(lora_id, dataset_repo_id)
-            if training_successfull:
-                add_created_lora_to_user(lora_id) # Add the LoRA to the creator’s profile in Supabase
-                update_lora_status(lora_id, LoraStatus.TRAINING_COMPLETED)
-            else:
-                update_lora_status(lora_id, LoraStatus.TRAINING_FAILED)
+        # Assume dataset already uploaded to HF
+        training_successful, pod_id = start_training_pipeline(api, lora_id, dataset_repo_id)
+
+        if training_successful:
+            add_created_lora_to_user(lora_id)  # Add LoRA to creator’s profile in Supabase
+            update_lora_status(lora_id, LoraStatus.TRAINING_COMPLETED)
+        else:
+            update_lora_status(lora_id, LoraStatus.TRAINING_FAILED)
+
     finally:
-        cleanup(dataset_file_path, api, dataset_repo_id, lora_id)
+        cleanup(dataset_file_path)
         if pod_id:
             delete_pod(pod_id)
     
     return
 
-def upload_dataset(api: HfApi, repo_id: str, file_path: str) -> bool:
+def cleanup(temp_path: str):
+    print("🧹 Cleaning up...")
     try:
-        api.create_repo(repo_id=repo_id, repo_type="dataset", private=True, exist_ok=True)
-        api.upload_file(
-            path_or_fileobj=file_path,
-            path_in_repo="data.jsonl",
-            repo_id=repo_id,
-            repo_type="dataset"
-        )
-        print("✅ Dataset uploaded.")
-        return True
+        os.remove(temp_path)
+        print(f"🧹 Deleted local dataset: {temp_path}")
     except Exception as e:
-        print(f"❌ Dataset upload failed: {e}")
-        return False
-
-def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> tuple[bool, str | None]:
+        print(f"⚠️ Failed to delete local file: {e}")
+        
+def get_config_template(model_id: str) -> str:
+    """Return the correct config template based on the model ID"""
+    if "phi" in model_id.lower():
+        return "lora_training_config_phi2.yaml"
+    elif "mistral" in model_id.lower():
+        return "lora_training_config_mistral.yaml"
+    else:
+        # Default to Mistral config for safety
+        return "lora_training_config_mistral.yaml"
+    
+def start_training_pipeline(api: HfApi, lora_id: str, dataset_repo_id: str) -> tuple[bool, str | None]:
     
     training_start = datetime.now()
     
-    # These are the config filepath (you can read from this and put into the pod creation)
-    # Also the output_model_path is the path where the model will be saved
+    model_id = os.getenv("HF_MODEL_ID")
+    config_template = get_config_template(model_id)
+    
+    # Build the full path to the config file
+    configs_dir = "lora_training_configs"
+    config_template_path = os.path.join(configs_dir, config_template)
+    
+    print(f"📋 Using config template: {config_template_path} for model: {model_id}")
+    
+    # Check if the config file actually exists
+    if not os.path.exists(config_template_path):
+        print(f"❌ ERROR: Config template file not found at: {config_template_path}")
+        print("   Please make sure the file exists in the lora_training_configs folder.")
+        return False, None
+    
     print("🔄 Starting training pipeline...")
     model_output_path = f"output/{lora_id}"
-    config_content = generate_config("lora_training_config.yaml", dataset_repo_id, model_output_path)
+    config_content = generate_config(config_template_path, dataset_repo_id, model_output_path)
     
     pod_id = create_pod(lora_id, dataset_repo_id, model_output_path, config_content)
     if not pod_id:
@@ -98,7 +116,7 @@ def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> tuple[bool, s
     while count * hours_to_wait < max_hours:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # current timestamp
 
-        if check_lora_model_uploaded(lora_id):
+        if check_lora_model_uploaded(api, lora_id):
             print(f"✅ LoRA model found on HF.")
             
             training_end = datetime.now()
@@ -239,25 +257,9 @@ def generate_config(template_path: str, dataset_repo_id: str, model_output_path:
 
     return content
 
-def cleanup(temp_path: str, api: HfApi, dataset_repo_id: str, lora_id: str):
-    print("🧹 Cleaning up...")
-    try:
-        os.remove(temp_path)
-        print(f"🧹 Deleted local dataset: {temp_path}")
-    except Exception as e:
-        print(f"⚠️ Failed to delete local file: {e}")
-
-    try:
-        api.delete_repo(repo_id=dataset_repo_id, repo_type="dataset")
-        print("🧼 Deleted HF dataset repo.")
-    except Exception as e:
-        print(f"⚠️ Failed to delete HF dataset repo: {e}")
-
-def check_lora_model_uploaded(lora_id: str) -> bool:
+def check_lora_model_uploaded(api: HfApi, lora_id: str) -> bool:
     model_repo_id = f"{os.getenv('HF_USERNAME')}/{lora_id}-model" # DO NOT CHANGE THIS -> the docker image will create this repo
     print(f"🔍 Checking if LoRA model {model_repo_id} exists on HuggingFace...")
-    
-    api = HfApi(token=os.getenv('HF_TOKEN'))
 
     try:
         files = api.list_repo_files(repo_id=model_repo_id, repo_type="model")
