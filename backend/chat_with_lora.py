@@ -29,14 +29,48 @@ image = (
 @app.cls(gpu="A100-80GB", image=image, timeout=900, volumes={"/cache": model_volume})
 class Phi2Chat:
 
-    def load(self, model_repo: str, hf_token: str):
+    # Define class parameters
+    base_model_repo: str = modal.parameter()
+    hf_token: str = modal.parameter()
+
+    @modal.enter()
+    def setup(self):
+        """
+        Lifecycle hook. Runs ONCE when the container starts.
+        Initializes empty state. The base model will be loaded on first request.
+        """
+        print(f"{GREEN}[LIFECYCLE] Container spawned. Initializing empty state.{RESET}")
+        self.loaded_loras = {}
+        self._base_model_loaded = False
+        self.tokenizer = None
+        self.base_model = None
+
+    @modal.method()
+    def shutdown(self):
+        """
+        Manually clear state & free memory.
+        This gives a callable way to 'terminate' early.
+        """
+        self.loaded_loras.clear()
+        self.base_model = None
+        self.tokenizer = None
+        print("[LIFECYCLE] Manual shutdown triggered")
+        return "[INFO] Chat worker shut down manually."
+    
+    def _ensure_base_model_loaded(self, model_repo: str, hf_token: str):
+        """
+        Internal method to load the base model and tokenizer.
+        Only runs the expensive loading logic once per container lifetime.
+        """
+        if self._base_model_loaded:
+            # Base model is already loaded, nothing to do.
+            print(f"{YELLOW}[INFO] Base model already loaded. Skipping.{RESET}")
+            return
+
         print(f"{YELLOW}[INFO] Logging in to Hugging Face Hub...{RESET}")
         login(token=hf_token)
+        self.hf_token = hf_token
         print(f"{GREEN}[SUCCESS] Logged in successfully{RESET}")
-
-        if getattr(self, "_model_loaded", False):
-            print(f"{YELLOW}[INFO] Model already loaded, skipping...{RESET}")
-            return
 
         # Load tokenizer
         print(f"{YELLOW}[INFO] Loading tokenizer from repo {model_repo}...{RESET}")
@@ -76,11 +110,14 @@ class Phi2Chat:
         print(f"{GREEN}[SUCCESS] Base model loaded.{RESET}")
         print(f"{BLUE}[DEBUG] Base model embedding matrix shape: {self.base_model.get_input_embeddings().weight.shape}{RESET}")
 
-        self.loaded_loras = {}
-        self._model_loaded = True
+        self._base_model_loaded = True
         print(f"{GREEN}[INFO] Base model ready for LoRA loading.{RESET}")
 
-    def get_lora_model(self, lora_repo: str, hf_token: str):
+    def get_lora_model(self, lora_repo: str):
+        """
+        Gets a LoRA model from the cache, loading it if necessary.
+        Assumes the base model is already loaded.
+        """
         if lora_repo in self.loaded_loras:
             print(f"{YELLOW}[INFO] LoRA {lora_repo} already loaded. Using cache.{RESET}")
             return self.loaded_loras[lora_repo]
@@ -90,7 +127,7 @@ class Phi2Chat:
             lora_model = PeftModel.from_pretrained(
                 self.base_model,
                 lora_repo,
-                token=hf_token
+                token=self.hf_token
             )
             print(f"{GREEN}[SUCCESS] LoRA loaded successfully!{RESET}")
         except Exception as e:
@@ -103,7 +140,7 @@ class Phi2Chat:
         print(f"{CYAN}[INFO] Base model embedding shape: {base_emb}{RESET}")
         print(f"{CYAN}[INFO] LoRA embedding shape: {lora_emb}{RESET}")
 
-        # Resize tokenizer / embeddings AFTER LoRA if needed
+        # Resize tokenizer / embeddings if needed
         tokenizer_size = len(self.tokenizer)
         if tokenizer_size > lora_emb[0]:
             print(f"{MAGENTA}[WARN] Tokenizer vocab ({tokenizer_size}) > LoRA vocab ({lora_emb[0]}). Resizing embeddings...{RESET}")
@@ -135,13 +172,12 @@ class Phi2Chat:
             "(Answer naturally in the same style, and ask a follow-up question to keep the chat going.)"
         )
 
-        # Prepend user_name naturally in the message if provided
         if user_name:
             user_text = f"{user_name}: {user_prompt}"
         else:
             user_text = user_prompt
 
-        # Optionally hint assistant name in the end_prompt, but subtly
+        # Hint assistant name in the end_prompt
         if assistant_name:
             end_prompt_text = f"{end_prompt_text} (Respond as {assistant_name}.)"
 
@@ -156,9 +192,7 @@ class Phi2Chat:
     @modal.method()
     def chat_with_lora(
         self,
-        base_model_repo: str,
         lora_repo: str,
-        hf_token: str,
         prompt: str,
         max_new_tokens: int,
         end_prompt: str = None,
@@ -166,8 +200,10 @@ class Phi2Chat:
     ) -> str:
         print(f"{YELLOW}[INFO] chat_with_lora called{RESET}")
 
-        self.load(base_model_repo, hf_token)
-        lora_model = self.get_lora_model(lora_repo, hf_token)
+        # This ensures the base model is loaded (only happens on first call)
+        self._ensure_base_model_loaded(self.base_model_repo, self.hf_token)
+        # This uses the persistent cache for LoRAs
+        lora_model = self.get_lora_model(lora_repo)
 
         if not prompt.strip():
             print(f"{MAGENTA}[WARN] Empty prompt received{RESET}")
@@ -188,7 +224,7 @@ class Phi2Chat:
                 do_sample=True,
                 repetition_penalty=1.2,
                 pad_token_id=self.tokenizer.eos_token_id,
-                eos_token_id=self.tokenizer.eos_token_id  # use tokenizer-defined EOS consistently
+                eos_token_id=self.tokenizer.eos_token_id  # uses the tokenizer-defined EOS consistently
             )
 
         # Slice off the input so only new tokens remain
@@ -196,8 +232,20 @@ class Phi2Chat:
 
         reply = self.tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
         
-        # Clean junk tokens like <@a>
-        reply = re.sub(r"<[@:].*?>", "", reply)
+        reply = self.filter_output(reply)
         
         print(f"{GREEN}[SUCCESS] Reply ready: {reply}{RESET}")
         return reply
+    
+    def filter_output(self, text: str) -> str:
+        
+        # Clean junk tokens like <@a>
+        text = re.sub(r"<[@:].*?>", "", text)
+        
+        # Remove full or partial ChatML tokens
+        text = re.sub(r"<\|im_(start|end)\|?.*?", "", text)
+        
+        # Clean extra whitespace/newlines
+        text = re.sub(r"\s+\n", "\n", text)
+        text = re.sub(r"\n\s+", "\n", text)
+        return text.strip()

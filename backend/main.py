@@ -56,11 +56,16 @@ chat_worker = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global chat_worker
-    print("🔌 Connecting to Modal chat worker...")
-    chat_worker = Phi2ChatCls()  # This is the worker instance (proxy)
-    print(f"✔️  Connected to Modal chat worker: {chat_worker}")
+    print("🔌 Spinning up PERSISTENT Modal chat worker...")
+    chat_worker = Phi2ChatCls(
+        base_model_repo="microsoft/phi-2",
+        hf_token=HF_TOKEN
+    )
+    print(f"✔️  Persistent Modal chat worker spawned: {chat_worker}")
     yield
-    print("👋 Shutting down chat worker...")
+    print("👋 Terminating persistent chat worker...")
+    chat_worker.shutdown.remote()
+    print("✔️  Chat worker terminated.")
 
 app.router.lifespan_context = lifespan
 
@@ -76,23 +81,10 @@ async def chat(request: Request) -> JSONResponse:
     try:
         print("🚀 Sending prompt to Modal...")
 
-        # fetch dataset_analysis from Supabase
-        resp = supabase.table("loras").select("dataset_analysis").eq("id", loraid).single().execute()
-        dataset_analysis = resp.data.get("dataset_analysis") if resp.data else None
-
-        max_new_tokens = 100  # default fallback
-        end_prompt = None
-        participants = {}
-
-        if dataset_analysis:
-            max_new_tokens = dataset_analysis.get("max_new_tokens", max_new_tokens)
-            end_prompt = dataset_analysis.get("end_prompt")
-            participants = dataset_analysis.get("participants", [])
+        max_new_tokens, end_prompt, participants = get_dataset_analysis(loraid)
 
         response = chat_worker.chat_with_lora.remote(
-            base_model_repo="microsoft/phi-2",
             lora_repo=f"{HF_USERNAME}/{loraid}-model",
-            hf_token=HF_TOKEN,
             prompt=prompt,
             max_new_tokens=max_new_tokens,
             end_prompt=end_prompt,
@@ -229,3 +221,19 @@ def save_dataset_analysis(lora_id: str, analysis: dict):
         print(f"✅ Saved dataset analysis for lora {lora_id}")
     except Exception as e:
         print(f"⚠️ Failed to save dataset analysis: {e}")
+
+def get_dataset_analysis(loraid: str) -> tuple:
+    # fetch dataset_analysis from Supabase
+    resp = supabase.table("loras").select("dataset_analysis").eq("id", loraid).single().execute()
+    dataset_analysis = resp.data.get("dataset_analysis") if resp.data else None
+
+    max_new_tokens = 100  # default fallback
+    end_prompt = None
+    participants = {}
+
+    if dataset_analysis:
+        max_new_tokens = dataset_analysis.get("max_new_tokens", max_new_tokens)
+        end_prompt = dataset_analysis.get("end_prompt")
+        participants = dataset_analysis.get("participants", [])
+    
+    return max_new_tokens, end_prompt, participants
