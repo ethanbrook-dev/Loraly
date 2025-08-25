@@ -23,7 +23,8 @@ export default function TrainingStartedPage() {
         <div className="spinner" />
       </div>
       <h1>Voice generation has started!</h1>
-      <p>It usually takes about 10 hours to complete. </p>
+      <p>It usually takes about 15-20 minutes to finish training with a 10,000 word chat. </p>
+      <p>Longer chats may take more time. </p>
       <p>Check your dashboard later to see when it’s ready.</p>
 
       <style jsx>{`

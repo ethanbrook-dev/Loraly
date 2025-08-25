@@ -1,4 +1,4 @@
-// minimum words for meaningfull lora training is 50,000
-// It is best if 100,000+ words
+// minimum words for meaningfull lora training is 10,000
+// Though the more words, the better
 
-export const MIN_WORDS_FOR_LORA_GEN = 70000
+export const MIN_WORDS_FOR_LORA_GEN = 10000
