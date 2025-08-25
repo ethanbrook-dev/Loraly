@@ -171,10 +171,17 @@ def clean_unicode(text: str) -> str:
     return text
 
 def remove_all_unicode_except_ascii(text: str) -> str:
-    # Remove emojis and all other non-ASCII characters
-    return text.encode("ascii", errors="ignore").decode()
-    """Returns a list of all non-ASCII characters in the string"""
-    return [char for char in set(text) if ord(char) > 127]
+    """
+    Keep standard ASCII letters, digits, and all common special characters.
+    Removes emojis and other unwanted unicode characters.
+    """
+    allowed_chars = (
+        "abcdefghijklmnopqrstuvwxyz"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "0123456789"
+        " ~!@#$%^&*()-=_+[]{};':\"\\|,.<>/?"
+    )
+    return "".join(c for c in text if c in allowed_chars)
 
 def text_to_axolotl_json(raw_text: str) -> str:
     """
