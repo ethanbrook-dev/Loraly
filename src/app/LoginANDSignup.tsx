@@ -92,7 +92,7 @@ export default function LoginANDSignup() {
             <img
               src="/loraly-logo.png"
               alt="loraly Logo"
-              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '50%' }}
             />
           </div>
           <div className="loraly-subtitle">
