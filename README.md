@@ -80,7 +80,7 @@ Loraly operates at the intersection of several high-growth markets: **digital le
 
 For demonstration purposes, you can explore Loraly at our temporary demo site:  
 
-[**View Loraly Demo**](https://loralydemo.netlify.app)  
+Loraly demo at: [**https://loralydemo.netlify.app**](https://loralydemo.netlify.app)  
 
 > ⚠️ *This site is for demo purposes only and will be deleted later.*
 
