@@ -5,6 +5,7 @@
 // React and Next.js imports
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 
 // Supabase client import
 import { supabase } from '../../supabase/client'
@@ -41,7 +42,7 @@ export default function LoginANDSignup() {
       }
     } else {
 
-      const { data: emailExists, error: e } = await supabase
+      const { data: emailExists } = await supabase
         .from('profiles')
         .select('email')
         .eq('email', email)
@@ -50,7 +51,7 @@ export default function LoginANDSignup() {
       if (emailExists) {
         setErrorMsg('Email is already in use.')
       } else {
-        const { data: existingUsers, error: fetchError } = await supabase
+        const { data: existingUsers } = await supabase
           .from('profiles')
           .select('username')
           .eq('username', username)
@@ -59,7 +60,7 @@ export default function LoginANDSignup() {
         if (existingUsers) {
           setErrorMsg('Username already taken')
         } else {
-          const { data, error: signUpError } = await supabase.auth.signUp({
+          const { error: signUpError } = await supabase.auth.signUp({
             email,
             password,
             options: {
@@ -89,11 +90,14 @@ export default function LoginANDSignup() {
       <div className="loraly-wrapper">
         <div className="loraly-logo">
           <div className="logo-icon">
-            <img
-              src="/loraly-logo.png"
-              alt="loraly Logo"
-              style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '50%' }}
-            />
+            <div style={{ width: '100%', height: '100px', position: 'relative' }}>
+              <Image
+                src="/loraly-logo.png"
+                alt="Loraly Logo"
+                fill
+                style={{ objectFit: 'contain' }}
+              />
+            </div>
           </div>
           <div className="loraly-subtitle">
             {isLoginView ? 'Login to your account' : 'Create new account'}
@@ -199,7 +203,7 @@ export default function LoginANDSignup() {
             <div className="form-footer">
               {isLoginView ? (
                 <>
-                  Don't have an account?
+                  Don&apos;t have an account?
                   <button
                     onClick={() => {
                       setErrorMsg('')

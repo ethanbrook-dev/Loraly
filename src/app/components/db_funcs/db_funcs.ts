@@ -21,7 +21,6 @@ const LORAS_TABLE_NAME = 'loras';
 const LORAS_TABLE_ID_COL = 'id';
 const LORAS_TABLE_CREATOR_COL = 'creator_id';
 const LORAS_TABLE_PROFILE_PIC_COL = 'profile_pic_url';
-const LORAS_TABLE_STATUS_COL = 'training_status'; //status is updated in backend
 const LORA_PROFILE_PIC_BUCKET_NAME = 'lora-profile-pics';
 const SHARED_LORA_PIC_BUCKET = 'shared-lora-pics';
 

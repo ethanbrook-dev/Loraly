@@ -4,15 +4,17 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 
 import {
   getAuthenticatedUser,
   getUSERProfile,
   generateUSERProfilePicSignedUrl,
   generateSharedLORAProfilePicSignedUrl,
-  deleteSharedLORAFromUser,
-  deleteSharedLORAPicFromStorage
+  deleteSharedLORAFromUser
 } from '../../components/db_funcs/db_funcs';
+
+import ChatInterface from '@/app/ExplorerView/ChatInterface/ChatInterface';
 
 import UserHeader from '@/app/components/UserHeader';
 import '../../../../styles/ExplorerViewStyles.css';
@@ -41,6 +43,9 @@ export default function ExplorerDashboard() {
 
   const [showModal, setShowModal] = useState(false);
   const [selectedLora, setSelectedLora] = useState<SharedLora | null>(null);
+
+  const [loraIdForChatInterface, setLoraIdForChatInterface] = useState<string | null>(null);
+  const [loraNameForChatInterface, setLoraNameForChatInterface] = useState<string | null>(null);
 
   // Fetch user profile and signed URLs
   useEffect(() => {
@@ -77,6 +82,10 @@ export default function ExplorerDashboard() {
     fetchUserProfile();
   }, []);
 
+  if (loraIdForChatInterface && loraNameForChatInterface) {
+    return <ChatInterface loraid={loraIdForChatInterface} loraName={loraNameForChatInterface} />
+  }
+
   return (
     <div className="explorer-dashboard-container">
       <UserHeader
@@ -92,11 +101,15 @@ export default function ExplorerDashboard() {
         ) : (
           userData?.loras_shared_w_me.map((lora) => (
             <div key={lora.id} className="lora-card">
-              <img
-                src={signedLoraPicUrls[lora.id]}
-                alt="LoRA Profile"
-                className="lora-profile-pic"
-              />
+              <div style={{ width: '80px', height: '80px', position: 'relative' }}>
+                <Image
+                  src={signedLoraPicUrls[lora.id]}
+                  alt="LoRA Profile"
+                  fill
+                  style={{ objectFit: 'cover' }}
+                  className="lora-profile-pic"
+                />
+              </div>
 
               <div className="lora-details">
                 <h3 className="lora-name">{lora.name}</h3>
@@ -104,7 +117,10 @@ export default function ExplorerDashboard() {
                 <div className="lora-card-buttons">
                   <button
                     className="chat-button"
-                    onClick={() => router.push(`../../../ExplorerView/ChatInterface/${lora.id}`)}
+                    onClick={() => {
+                      setLoraIdForChatInterface(lora.id);
+                      setLoraNameForChatInterface(lora.name);
+                    }}
                   >
                     Chat
                   </button>

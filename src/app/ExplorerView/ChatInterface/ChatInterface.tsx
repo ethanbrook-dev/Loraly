@@ -2,26 +2,21 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
-import { getLORAProfileByID } from '@/app/components/db_funcs/db_funcs';
-import '../../../../../styles/ChatInterfaceStyles.css';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import '../../../../styles/ChatInterfaceStyles.css';
 
-export default function ChatInterfacePage() {
-    const { loraid } = useParams();
-    const [loraName, setLoraName] = useState<string>('Loading...');
+type ChatInterfacePageProps = {
+    loraid: string;
+    loraName: string;
+};
+
+export default function ChatInterfacePage({ loraid, loraName }: ChatInterfacePageProps) {
+    const router = useRouter();
+
     const [input, setInput] = useState('');
     const [chatHistory, setChatHistory] = useState<{ sender: string; message: string }[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-
-    useEffect(() => {
-        async function fetchLoraName() {
-            const loraData = await getLORAProfileByID(loraid as string);
-            if (loraData) setLoraName(loraData.name);
-        }
-
-        fetchLoraName();
-    }, [loraid]);
 
     const handleSend = async () => {
         if (!input.trim()) return;
@@ -57,6 +52,12 @@ export default function ChatInterfacePage() {
     return (
         <div className="chat-interface-wrapper">
             <div className="chat-header">
+                <button
+                    className="back-button"
+                    onClick={() => router.back()}
+                >
+                    ← Back to Dashboard
+                </button>
                 <h2 className="lora-name-title">{loraName}</h2>
             </div>
 

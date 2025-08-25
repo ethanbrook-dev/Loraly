@@ -3,6 +3,7 @@
 // React imports
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 
 // Database functions and types imports
 import {
@@ -17,10 +18,10 @@ import {
 // Components imports
 import ProfilePicture_lora from '../../components/ProfilePicture_Lora';
 import UserHeader from '../../components/UserHeader';
-import UploadWhatsappChat from '../uploadWhatsappChat/page';
+import ShareLoraPage from '../ShareLora/ShareLora';
+import UploadWhatsappChat from '../uploadWhatsappChat/uploadWhatsappChat';
 
 // Constants imports
-import { MIN_WORDS_FOR_LORA_GEN } from '../../constants/MIN_WORDS_FOR_LORA_GEN';
 import { LoraStatus } from '@/app/constants/loraStatus';
 
 // Styles imports
@@ -28,18 +29,11 @@ import '../../../../styles/CreatorViewStyles.css';
 import '../../../../styles/LoraCardStyles.css';
 import '../../../../styles/SharingLoraStyles.css'
 
-type AudioFile = {
-  name: string;
-  text: string;
-  duration: number;
-};
-
 type Lora = {
   id: string;
   creator_id: string;
   name: string;
   profile_pic_url: string | null;
-  audio_files: AudioFile[];
   training_status: string;
 };
 
@@ -68,6 +62,9 @@ export default function CreatorDashboard() {
 
   const [loadingLoraIDs, setLoadingLoraIDs] = useState<Record<string, boolean>>({});
   const [uploadingLoraId, setUploadingLoraId] = useState<string | null>(null);
+
+  const [sharingLoraId, setSharingLoraId] = useState<string | null>(null);
+  const [sharingLoraName, setSharingLoraName] = useState<string | null>(null);
 
   // Fetch user profile
   useEffect(() => {
@@ -131,6 +128,10 @@ export default function CreatorDashboard() {
     return <UploadWhatsappChat loraId={uploadingLoraId} />;
   }
 
+  if (sharingLoraId && sharingLoraName) {
+    return <ShareLoraPage loraid={sharingLoraId} loraName={sharingLoraName} />;
+  }
+
   return (
     <main className="creator-dashboard">
       <UserHeader
@@ -179,7 +180,10 @@ export default function CreatorDashboard() {
                         {isTrainingCompleted && (
                           <button
                             className="share-button"
-                            onClick={() => router.push(`../../../CreatorView/ShareLora/${lora.id}/${lora.name}`)}
+                            onClick={() => {
+                              setSharingLoraId(lora.id);
+                              setSharingLoraName(lora.name);
+                            }}
                           >
                             Share Voice
                           </button>
@@ -222,7 +226,14 @@ export default function CreatorDashboard() {
                             : 'pointer',
                       }}
                     >
-                      <img src="/delete-icon.svg" alt="Delete" />
+                      <div style={{ width: '40px', height: '40px', position: 'relative' }}>
+                        <Image
+                          src="/delete-icon.svg"
+                          alt="Delete"
+                          fill
+                          style={{ objectFit: 'contain' }}
+                        />
+                      </div>
                     </button>
                   )}
                 </div>

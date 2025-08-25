@@ -2,8 +2,9 @@
 
 'use client';
 
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 
 import {
   generateUSERProfilePicSignedUrl,
@@ -13,7 +14,7 @@ import {
   getLORAProfilePicUrl,
   copyLORAProfilePicToSharedBucket,
   generateSharedLORAProfilePicSignedUrl
-} from '../../../../components/db_funcs/db_funcs';
+} from '../../components/db_funcs/db_funcs';
 
 type ShareRecipient = {
   id: string;
@@ -21,10 +22,13 @@ type ShareRecipient = {
   profile_pic_url: string | null;
 };
 
-export default function ShareLoraPage() {
+type ShareLoraPageProps = {
+  loraid: string;
+  loraName: string;
+};
+
+export default function ShareLoraPage({ loraid, loraName }: ShareLoraPageProps) {
   const router = useRouter();
-  const params = useParams();
-  const { loraid, loraName } = params;
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ShareRecipient[]>([]);
@@ -85,7 +89,6 @@ export default function ShareLoraPage() {
 
     const picPath = await getLORAProfilePicUrl(loraid as string);
     let copiedPath = '';
-    let signedUrl = '';
 
     if (picPath) {
       const fileExt = picPath.split('.').pop() || 'png';
@@ -102,8 +105,6 @@ export default function ShareLoraPage() {
         setShareStatus('Failed to generate signed URL.');
         return;
       }
-
-      signedUrl = url;
     }
 
     const updatedLoras = [...sharedLoras, {
@@ -144,11 +145,15 @@ export default function ShareLoraPage() {
             <div key={user.id}
               className="search-user-card"
               onClick={() => handleShare(user)}>
-              <img
-                src={user.profile_pic_url || undefined}
-                alt="Profile"
-                className="user-avatar"
-              />
+              <div style={{ width: '100px', height: '100px', position: 'relative' }}>
+                <Image
+                  src={user.profile_pic_url || '/default-user-profile-pic.png'}
+                  alt="Profile"
+                  fill
+                  style={{ objectFit: 'cover' }}
+                  className="user-avatar"
+                />
+              </div>
               <span>{user.username}</span>
             </div>
           ))}
