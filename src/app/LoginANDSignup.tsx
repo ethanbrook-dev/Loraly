@@ -85,25 +85,24 @@ export default function LoginANDSignup() {
   }
 
   return (
-    <div className="aftervoice-container">
-      <div className="aftervoice-wrapper">
-        <div className="aftervoice-logo">
+    <div className="loraly-container">
+      <div className="loraly-wrapper">
+        <div className="loraly-logo">
           <div className="logo-icon">
             <img
-              src="/AfterVoiceAI-logo.png"
-              alt="AfterVoiceAI Logo"
+              src="/loraly-logo.png"
+              alt="loraly Logo"
               style={{ width: '100%', height: '100%', objectFit: 'contain' }}
             />
           </div>
-          <h1 className="aftervoice-title">[app name goes here]</h1>
-          <div className="aftervoice-subtitle">
+          <div className="loraly-subtitle">
             {isLoginView ? 'Login to your account' : 'Create new account'}
           </div>
         </div>
 
-        <div className="aftervoice-card">
+        <div className="loraly-card">
           <div className="card-body">
-            <form onSubmit={handleSubmit} className="aftervoice-form">
+            <form onSubmit={handleSubmit} className="loraly-form">
               {!isLoginView && (
                 <div className="form-group">
                   <label htmlFor="username" className="form-label">
