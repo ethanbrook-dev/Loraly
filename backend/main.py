@@ -13,11 +13,18 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from huggingface_hub import HfApi
 import modal, asyncio
+from supabase import create_client
 
 # Local imports
+from backend.dataset_analyzer import analyze_dataset
 from backend.train_lora import train_lora
+
+# Load supabase
+supabase = create_client(
+    os.getenv("NEXT_PUBLIC_SUPABASE_URL"),
+    os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+)
 
 app = FastAPI()
 
@@ -68,11 +75,21 @@ async def chat(request: Request) -> JSONResponse:
 
     try:
         print("🚀 Sending prompt to Modal...")
+
+        # fetch dataset_analysis from Supabase
+        resp = supabase.table("loras").select("dataset_analysis").eq("id", loraid).single().execute()
+        dataset_analysis = resp.data.get("dataset_analysis") if resp.data else None
+        max_new_tokens = 100  # default fallback
+        if dataset_analysis and "max_new_tokens" in dataset_analysis:
+            max_new_tokens = dataset_analysis["max_new_tokens"]
+
         response = chat_worker.chat_with_lora.remote(
-            base_model_repo="microsoft/phi-2",                    # base model repo
-            lora_repo=f"{HF_USERNAME}/{loraid}-model",  # LoRA model repo
-            hf_token=HF_TOKEN,                        # HF token
-            prompt=prompt
+            base_model_repo="microsoft/phi-2",
+            lora_repo=f"{HF_USERNAME}/{loraid}-model",
+            hf_token=HF_TOKEN,
+            prompt=prompt,
+            max_new_tokens=max_new_tokens,
+            end_prompt=dataset_analysis.get("end_prompt") if dataset_analysis else None
         )
         return {"response": response}
     except Exception as e:
@@ -96,6 +113,14 @@ async def generate_voice(request: Request, background_tasks: BackgroundTasks):
         temp_file_path = temp_file.name
         temp_file.write(jsonl_str)
         temp_file.flush()
+    
+    # Analyze dataset
+    try:
+        analysis = analyze_dataset(temp_file_path)
+        save_dataset_analysis(lora_id, analysis)  # save into Supabase
+    except Exception as e:
+        print(f"⚠️ Failed to analyze dataset: {e}")
+        analysis = None
 
     background_tasks.add_task(train_lora, lora_id, temp_file_path)
     background_tasks.add_task(delete_file_after_delay, temp_file_path, 10)
@@ -180,3 +205,12 @@ def text_to_axolotl_json(raw_text: str) -> str:
 
     # Join all conversation blocks with newline to produce valid JSONL
     return "\n".join(conversation_jsonl)
+
+def save_dataset_analysis(lora_id: str, analysis: dict):
+    try:
+        supabase.table("loras").update({
+            "dataset_analysis": analysis
+        }).eq("id", lora_id).execute()
+        print(f"✅ Saved dataset analysis for lora {lora_id}")
+    except Exception as e:
+        print(f"⚠️ Failed to save dataset analysis: {e}")
