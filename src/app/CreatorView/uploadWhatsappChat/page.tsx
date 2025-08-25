@@ -161,6 +161,8 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
         if (!proceed) return;
       }
 
+      const assistantName = participants.find(name => name !== selectedParticipant);
+
       try {
         setGenerating(true);
         const res = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_BACKEND_URL}/generate-voice`, {
@@ -169,6 +171,10 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
           body: JSON.stringify({
             loraId,
             rawText: fullText,
+            participants: {
+              user: selectedParticipant,
+              assistant: assistantName,
+            },
           }),
         });
 

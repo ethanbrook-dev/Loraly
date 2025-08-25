@@ -3,12 +3,13 @@
 import json
 import re
 import numpy as np
-from collections import Counter
+from typing import List
 
-def analyze_dataset(jsonl_path: str):
+def analyze_dataset(jsonl_path: str, participants: List[str]):
     """
     Analyze dataset JSONL (Axolotl format with messages[]).
     Returns dict with generation settings + a custom end_prompt string.
+    Also returns the participants list for Supabase storage.
     """
 
     msg_lengths = []
@@ -42,13 +43,18 @@ def analyze_dataset(jsonl_path: str):
     if not all_msgs:
         return {
             "max_new_tokens": 128,
-            "end_prompt": "(Answer naturally.)"
+            "end_prompt": "(Answer naturally.)",
+            "participants": participants or []
         }
 
     avg_len = np.mean(msg_lengths)
 
-    # Heuristic: set max_new_tokens to average length, bounded between 64 and 512
-    max_new_tokens = int(min(512, max(64, avg_len)))
+    # Heuristic: prefer 95th percentile * 1.2, fallback to avg if dataset is too small
+    if len(msg_lengths) > 10:
+        p95_len = np.percentile(msg_lengths, 95)
+        max_new_tokens = int(min(512, max(32, p95_len * 1.2)))
+    else:
+        max_new_tokens = int(min(512, max(32, avg_len * 2)))
 
     # Build dynamic end prompt
     style_bits = []
@@ -73,9 +79,10 @@ def analyze_dataset(jsonl_path: str):
     return {
         "max_new_tokens": max_new_tokens,
         "end_prompt": end_prompt,
-        "stats": { # not currently used. Optional statistics for debugging and analysis
+        "stats": {
             "avg_msg_len": avg_len,
             "emoji_density": emoji_count / max(1, len(all_msgs)),
             "slang_density": slang_count / max(1, len(all_msgs)),
         },
+        "participants": participants or []
     }

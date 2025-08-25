@@ -4,7 +4,7 @@ import os
 import time
 import requests
 from dotenv import load_dotenv
-from huggingface_hub import HfApi
+from huggingface_hub import HfApi, HfFolder, Repository
 from supabase import create_client
 from enum import Enum
 from datetime import datetime
@@ -40,8 +40,10 @@ def train_lora(lora_id: str,  dataset_file_path: str):
     update_lora_status(lora_id, LoraStatus.TRAINING)
 
     try:
-        # Assume dataset already uploaded to HF
+        # Upload dataset to to HF and start training
+        upload_dataset_to_hf(api, dataset_file_path, dataset_repo_id)
         training_successful, pod_id = start_training_pipeline(api, lora_id, dataset_repo_id)
+
 
         if training_successful:
             add_created_lora_to_user(lora_id)  # Add LoRA to creator’s profile in Supabase
@@ -55,6 +57,20 @@ def train_lora(lora_id: str,  dataset_file_path: str):
             delete_pod(pod_id)
     
     return
+
+def upload_dataset_to_hf(api: HfApi, dataset_file_path: str, dataset_repo_id: str):
+    try:
+        api.create_repo(repo_id=dataset_repo_id, repo_type="dataset", exist_ok=True)
+        api.upload_file(
+            path_or_fileobj=dataset_file_path,
+            path_in_repo="data.jsonl",
+            repo_id=dataset_repo_id,
+            repo_type="dataset"
+        )
+        print(f"✅ Uploaded dataset to {dataset_repo_id}")
+    except Exception as e:
+        print(f"❌ Failed to upload dataset: {e}")
+        raise
 
 def cleanup(temp_path: str):
     print("🧹 Cleaning up...")

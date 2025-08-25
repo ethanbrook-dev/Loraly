@@ -116,21 +116,54 @@ class Phi2Chat:
         self.loaded_loras[lora_repo] = lora_model
         return lora_model
 
-    def format_chatml_user_prompt(self, user_prompt: str, end_prompt: str = None) -> str:
+    def format_chatml_user_prompt(
+        self,
+        user_prompt: str,
+        end_prompt: str = None,
+        participants: dict = None
+    ) -> str:
         """
-        Format the user message for ChatML, optionally appending a dynamic end_prompt.
+        Format the user message for ChatML, appending a dynamic end_prompt.
+        Optionally include the participant's names in natural chat context
+        without breaking Axolotl special tokens.
         """
-        end_prompt_text = end_prompt or "(Answer naturally in the same style, and also ask a follow-up question to keep the conversation going.)"
-        
+        user_name = participants.get("user") if participants else None
+        assistant_name = participants.get("assistant") if participants else None
+
+        # Default end_prompt if not provided
+        end_prompt_text = end_prompt or (
+            "(Answer naturally in the same style, and ask a follow-up question to keep the chat going.)"
+        )
+
+        # Prepend user_name naturally in the message if provided
+        if user_name:
+            user_text = f"{user_name}: {user_prompt}"
+        else:
+            user_text = user_prompt
+
+        # Optionally hint assistant name in the end_prompt, but subtly
+        if assistant_name:
+            end_prompt_text = f"{end_prompt_text} (Respond as {assistant_name}.)"
+
         return (
             "<|im_start|>user\n"
-            f"{user_prompt}<|im_end|>\n"
+            f"{user_text}<|im_end|>\n"
             "<|im_start|>assistant\n"
-            f"{end_prompt_text}\n"
+            f"{end_prompt_text}<|im_end|>\n"
         )
+
     
     @modal.method()
-    def chat_with_lora(self, base_model_repo: str, lora_repo: str, hf_token: str, prompt: str, max_new_tokens: int, end_prompt: str = None) -> str:
+    def chat_with_lora(
+        self,
+        base_model_repo: str,
+        lora_repo: str,
+        hf_token: str,
+        prompt: str,
+        max_new_tokens: int,
+        end_prompt: str = None,
+        participants: dict = None
+    ) -> str:
         print(f"{YELLOW}[INFO] chat_with_lora called{RESET}")
 
         self.load(base_model_repo, hf_token)
@@ -142,8 +175,8 @@ class Phi2Chat:
 
         print(f"{YELLOW}[INFO] Tokenizing prompt...{RESET}")
         
-        fomatted_prompt = self.format_chatml_user_prompt(prompt, end_prompt)
-        inputs = self.tokenizer(fomatted_prompt.strip(), return_tensors="pt").to(lora_model.device)
+        formatted_prompt = self.format_chatml_user_prompt(prompt, end_prompt, participants)
+        inputs = self.tokenizer(formatted_prompt.strip(), return_tensors="pt").to(lora_model.device)
 
         print(f"{YELLOW}[INFO] Generating response...{RESET}")
         with torch.no_grad():

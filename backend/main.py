@@ -79,9 +79,15 @@ async def chat(request: Request) -> JSONResponse:
         # fetch dataset_analysis from Supabase
         resp = supabase.table("loras").select("dataset_analysis").eq("id", loraid).single().execute()
         dataset_analysis = resp.data.get("dataset_analysis") if resp.data else None
+
         max_new_tokens = 100  # default fallback
-        if dataset_analysis and "max_new_tokens" in dataset_analysis:
-            max_new_tokens = dataset_analysis["max_new_tokens"]
+        end_prompt = None
+        participants = {}
+
+        if dataset_analysis:
+            max_new_tokens = dataset_analysis.get("max_new_tokens", max_new_tokens)
+            end_prompt = dataset_analysis.get("end_prompt")
+            participants = dataset_analysis.get("participants", [])
 
         response = chat_worker.chat_with_lora.remote(
             base_model_repo="microsoft/phi-2",
@@ -89,7 +95,8 @@ async def chat(request: Request) -> JSONResponse:
             hf_token=HF_TOKEN,
             prompt=prompt,
             max_new_tokens=max_new_tokens,
-            end_prompt=dataset_analysis.get("end_prompt") if dataset_analysis else None
+            end_prompt=end_prompt,
+            participants=participants
         )
         return {"response": response}
     except Exception as e:
@@ -105,6 +112,7 @@ async def generate_voice(request: Request, background_tasks: BackgroundTasks):
 
     lora_id = data.get("loraId")
     text = data.get("rawText")
+    participants = data.get("participants")
 
     # Convert to JSONL string
     jsonl_str = text_to_axolotl_json(text)
@@ -116,7 +124,7 @@ async def generate_voice(request: Request, background_tasks: BackgroundTasks):
     
     # Analyze dataset
     try:
-        analysis = analyze_dataset(temp_file_path)
+        analysis = analyze_dataset(temp_file_path, participants)
         save_dataset_analysis(lora_id, analysis)  # save into Supabase
     except Exception as e:
         print(f"⚠️ Failed to analyze dataset: {e}")
