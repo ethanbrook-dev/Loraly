@@ -123,13 +123,13 @@ def start_training_pipeline(api: HfApi, lora_id: str, dataset_repo_id: str) -> t
     print("✅ Training config uploaded to pod.")
     print("⏳ Waiting for model to appear on HF...")
 
-    max_hours = 24 # Allow a full day of training till timeout
-    
-    hours_to_wait = 0.25  # check every 15 mins
-    seconds_to_wait = hours_to_wait * 3600  # 900 seconds
+    max_hours = 24  # Allow a full day of training till timeout
+
+    minutes_to_wait = 2  # check every 2 minutes
+    seconds_to_wait = minutes_to_wait * 60  # 120 seconds
     count = 0
 
-    while count * hours_to_wait < max_hours:
+    while (count * minutes_to_wait) / 60 < max_hours:  # convert minutes to hours for comparison
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # current timestamp
 
         if check_lora_model_uploaded(api, lora_id):
@@ -142,7 +142,7 @@ def start_training_pipeline(api: HfApi, lora_id: str, dataset_repo_id: str) -> t
             print(f"🕒 LoRA took {hours:.2f} hours to train.")
             return True, pod_id
 
-        print(f"---\nIt is {now} \n ⚙️ LoRA still not uploaded. \n Will check again in {hours_to_wait} hours.\n---")
+        print(f"---\nIt is {now} \n ⚙️ LoRA still not uploaded. \n Will check again in {minutes_to_wait} minutes.\n---")
         
         time.sleep(seconds_to_wait)
         count += 1
