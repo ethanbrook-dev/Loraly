@@ -236,7 +236,7 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
                     onChange={() => setSelectedParticipant(name)}
                     className="participant-radio"
                   />
-                  Mimic {name}&apos; texting style
+                  Mimic {name}&apos;s texting style
                 </label>
               </li>
             ))}
