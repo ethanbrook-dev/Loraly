@@ -43,8 +43,8 @@ def train_lora(lora_id: str, dataset_file_path: str):
     update_lora_status(lora_id, LoraStatus.TRAINING)
 
     try:
-        upload_dataset_to_hf(api, dataset_file_path, dataset_repo_id)
-        pod_id = start_training_pipeline(api, lora_id, dataset_repo_id)
+        upload_dataset_to_hf(dataset_file_path, dataset_repo_id)
+        pod_id = start_training_pipeline(lora_id, dataset_repo_id)
         
         if not pod_id:
             print("❌ Failed to start training pipeline.")
@@ -64,7 +64,7 @@ def finalize_training(lora_id: str, pod_id: str):
     """Called when backend notifies us training finished. Checks HF, updates DB, and cleans up."""
 
     print("⏳ Checking if LoRA model is available on Hugging Face...")
-    if check_lora_model_uploaded(api, lora_id):
+    if check_lora_model_uploaded(lora_id):
         print(f"✅ LoRA model {lora_id} found on Hugging Face.")
         add_created_lora_to_user(lora_id)
         update_lora_status(lora_id, LoraStatus.TRAINING_COMPLETED)
