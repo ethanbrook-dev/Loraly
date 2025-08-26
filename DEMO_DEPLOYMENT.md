@@ -23,7 +23,8 @@ This document explains how to set up the **frontend** (Netlify) and **backend** 
 | `HF_MODEL_ID` | `microsoft/phi-2` | HuggingFace model ID used for training. **For now, don’t change this — we use this model and it works well.** |
 | `HF_TOKEN` | `hf_XXXXXXXXXXXXXXXXXXXX` | HuggingFace API token |
 | `HF_USERNAME` | `avai-hf` | HuggingFace username |
-| `MODAL_API_TOKEN` | `as-XXXXXXXXXXXXXXXX` | Modal API token for persistent chat workers |
+| `MODAL_TOKEN_ID` | `ak-xxxxxxxxxxxxxxxxxxxxxxxx` | Modal token ID for persistent chat workers |
+| `MODAL_TOKEN_SECRET` | `as-xxxxxxxxxxxxxxxxxxxxxxxx` | Modal token secret for persistent chat workers |
 | `NEXT_PUBLIC_PYTHON_BACKEND_URL` | `https://loraly.onrender.com` | ⚠️ Mandatory for demo — this is the backend URL that the frontend uses. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `e.....` | Supabase anon key |
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://mgwnjahogrgmsbtcrnkj.supabase.co` | Supabase project URL |
