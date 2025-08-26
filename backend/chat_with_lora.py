@@ -222,7 +222,7 @@ class Phi2Chat:
                 temperature=0.4,
                 top_p=0.9,
                 do_sample=True,
-                repetition_penalty=1.2,
+                repetition_penalty=1.3,
                 pad_token_id=self.tokenizer.eos_token_id,
                 eos_token_id=self.tokenizer.eos_token_id  # uses the tokenizer-defined EOS consistently
             )
@@ -246,6 +246,5 @@ class Phi2Chat:
         text = re.sub(r"<\|im_(start|end)\|?.*?", "", text)
         
         # Clean extra whitespace/newlines
-        text = re.sub(r"\s+\n", "\n", text)
-        text = re.sub(r"\n\s+", "\n", text)
+        text = "\n".join(line.strip() for line in text.splitlines() if line.strip())
         return text.strip()
