@@ -80,7 +80,16 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
       }
 
       setAllMessages(tempMessages);
-      setParticipants(Array.from(uniqueNames));
+      const tempParticipants = Array.from(uniqueNames);
+      setParticipants(tempParticipants);
+
+      if (tempParticipants.length !== 2) {
+        setError('Only one-on-one chats are supported. Please upload a chat with exactly 2 participants.');
+        setAllMessages([]);
+        setParticipants([]);
+        return;
+      }
+
       setError(null);
     } catch (err) {
       console.error(err);
