@@ -101,9 +101,9 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
 
   const handleConfirm = async () => {
     if (!selectedParticipant || !loraId) {
-      setError('Please select your name.');
-      return;
-    }
+    setError('Please select whose voice should be mimicked.');
+    return;
+  }
 
     const MAX_GAP_HOURS = 1; // split if gap > 1 hour
 
@@ -119,7 +119,7 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
     let lastAddedLine: string | null = null;
 
     for (const msg of sortedMessages) {
-      const speaker = msg.name === selectedParticipant ? 'User' : 'Assistant';
+      const speaker = msg.name === selectedParticipant ? 'Assistant' : 'User';
       const line = `${speaker}: ${msg.message}`;
 
       // skip if it's exactly the same as the last added line
@@ -165,9 +165,7 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
           `You have ${wordCount} words.\nRecommended minimum: ${MIN_WORDS_FOR_LORA_GEN} words.\n\nDo you want to go ahead and generate the voice anyway?`
         );
         if (!proceed) return;
-      }
-
-      const assistantName = participants.find(name => name !== selectedParticipant);
+      };
 
       try {
         setGenerating(true);
@@ -178,8 +176,8 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
             loraId,
             rawText: fullText,
             participants: {
-              user: selectedParticipant,
-              assistant: assistantName,
+              user: participants.find(name => name !== selectedParticipant),
+              assistant: selectedParticipant,
             },
           }),
         });
@@ -222,9 +220,9 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
 
       {participants.length > 0 && (
         <section className="participants-section">
-          <h2 className="section-title">Select your role in this chat</h2>
+          <h2 className="section-title">Whose voice should the AI learn?</h2>
           <p className="participant-help-text">
-            Select which participant you are. The AI will learn to emulate the voice of the other person in the conversation.
+            Select the participant you want the AI to emulate.
           </p>
           <ul className="participants-list">
             {participants.map(name => (
@@ -238,7 +236,7 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
                     onChange={() => setSelectedParticipant(name)}
                     className="participant-radio"
                   />
-                  {name}
+                  Mimic {name}&apos; texting style
                 </label>
               </li>
             ))}
