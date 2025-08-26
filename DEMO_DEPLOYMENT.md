@@ -8,8 +8,12 @@ This document explains how to set up the **frontend** (Netlify) and **backend** 
 
 **Service type:** Web Service  
 **Repository:** `https://github.com/AfterVoiceAI/Loraly`  
+**Language:** `python 3`
 **Branch:** `master`  
 **Region:** Oregon (US West)  
+**Root Directory:** `(Do not set this value - default would be the root of the repo)`
+**Build Command:** `pip install -r backend/requirements.txt`
+**Start Command:** `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
 **Instance Type:** Free (0.1 CPU, 512 MB)
 
 ### Environment Variables
@@ -26,18 +30,6 @@ This document explains how to set up the **frontend** (Netlify) and **backend** 
 | `RUNPOD_API_KEY` | `rpa_XXXXXXXXXXXXXXXX` | RunPod API key |
 | `SUPABASE_SERVICE_ROLE_KEY` | `e.....` | Supabase service role key |
 | `PORT` | *Leave empty (Render auto-sets to 10000)* | Optional, default is 10000 |
-
-### Build Command
-
-```bash
-pip install -r backend/requirements.txt`
-```
-
-### Start Command
-
-```bash
-uvicorn backend.main:app --host 0.0.0.0 --port $PORT
-```
 
 > Notes:
 > - Render will automatically provide the $PORT variable. No need to set it manually unless you want a custom port.
