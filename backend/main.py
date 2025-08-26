@@ -30,7 +30,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://loralydemo.netlify.app/"], # frontend URL for demo site
+    allow_origins=["https://loralydemo.netlify.app"], # frontend URL for demo site
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
