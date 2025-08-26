@@ -39,7 +39,7 @@ if not HF_TOKEN:
 api = HfApi(token=HF_TOKEN)
 
 def train_lora(lora_id: str, dataset_file_path: str):
-    dataset_repo_id = f"{os.getenv('HF_USERNAME')}/{lora_id}-dataset"
+    dataset_repo_id = get_hf_dataset_repo_id(lora_id)
     update_lora_status(lora_id, LoraStatus.TRAINING)
 
     try:
@@ -71,6 +71,9 @@ def finalize_training(lora_id: str, pod_id: str):
     else:
         print(f"❌ LoRA model {lora_id} not found on Hugging Face.")
         update_lora_status(lora_id, LoraStatus.TRAINING_FAILED)
+    
+    # delete HF dataset
+    delete_hf_dataset(lora_id)
 
     if pod_id:
         delete_pod(pod_id)
@@ -88,6 +91,17 @@ def upload_dataset_to_hf(dataset_file_path: str, dataset_repo_id: str):
     except Exception as e:
         print(f"❌ Failed to upload dataset: {e}")
         raise
+
+def delete_hf_dataset(lora_id: str):
+    dataset_repo_id = get_hf_dataset_repo_id(lora_id)
+    try:
+        api.delete_repo(repo_id=dataset_repo_id, repo_type="dataset")
+        print(f"🗑️ Deleted Hugging Face dataset: {dataset_repo_id}")
+    except Exception as e:
+        print(f"⚠️ Failed to delete HF dataset {dataset_repo_id}: {e}")
+
+def get_hf_dataset_repo_id(lora_id: str) -> str:
+    return f"{os.getenv('HF_USERNAME')}/{lora_id}-dataset"
 
 def cleanup(temp_path: str):
     print("🧹 Cleaning up...")
