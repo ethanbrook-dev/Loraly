@@ -30,7 +30,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # For dev - tighter restrictions getFrontendUrl()
+    allow_origins=["https://loralydemo.netlify.app"], # frontend URL for demo site
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -46,6 +46,11 @@ if not HF_TOKEN:
     raise RuntimeError("❌ HF_TOKEN not found in environment. Please set it in .env.local")
 if not HF_USERNAME:
     raise RuntimeError("❌ HF_USERNAME not found in environment. Please set it in .env.local")
+
+# ------------------------------------ TO CHECK BACKEND ON WEB (FOR DEMO SITE) ------------------------------------ #
+@app.get("/")
+async def root():
+    return {"message": "Hello from Loraly! This is the backend."}
 
 # ------------------------------------------------- CHATTING API ------------------------------------------------- #
 # 🔁 Correct way to hydrate class from deployed Modal App
