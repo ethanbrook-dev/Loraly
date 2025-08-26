@@ -177,7 +177,8 @@ def create_pod(lora_id: str, dataset_repo_id: str, model_output_path: str, confi
                     {"key": "DATASET_REPO", "value": dataset_repo_id},
                     {"key": "LORA_ID", "value": lora_id},
                     {"key": "CONFIG_CONTENT", "value": config_content},
-                    {"key": "MODEL_OUTPUT_DIR", "value": model_output_path}
+                    {"key": "MODEL_OUTPUT_DIR", "value": model_output_path},
+                    {"key": "BACKEND_NOTIFY_URL", "value": f"{os.getenv('NEXT_PUBLIC_PYTHON_BACKEND_URL')}/finalize-training"}
                 ]
             }
         }
