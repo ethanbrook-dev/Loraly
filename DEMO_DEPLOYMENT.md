@@ -6,15 +6,15 @@ This document explains how to set up the **frontend** (Netlify) and **backend** 
 
 ## 1. Backend: Render Setup
 
-**Service type:** Web Service  
-**Repository:** `https://github.com/AfterVoiceAI/Loraly`  
-**Language:** `python 3`
-**Branch:** `master`  
-**Region:** Oregon (US West)  
-**Root Directory:** `(Do not set this value - default would be the root of the repo)`
-**Build Command:** `pip install -r backend/requirements.txt`
-**Start Command:** `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
-**Instance Type:** Free (0.1 CPU, 512 MB)
+**Service type:** Web Service  <br />
+**Repository:** `https://github.com/AfterVoiceAI/Loraly`  <br />
+**Language:** `python 3`<br />
+**Branch:** `master`  <br />
+**Region:** Oregon (US West)  <br />
+(Do not set the "Root Directory" value - default would be the root of the repo)<br />
+**Build Command:** `pip install -r backend/requirements.txt`<br />
+**Start Command:** `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`<br />
+**Instance Type:** Free (0.1 CPU, 512 MB)<br />
 
 ### Environment Variables
 
