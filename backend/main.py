@@ -18,7 +18,7 @@ from supabase import create_client
 
 # Local imports
 from backend.dataset_analyzer import analyze_dataset
-from backend.train_lora import train_lora
+from backend.train_lora import train_lora, finalize_training
 
 # Load supabase
 supabase = create_client(
@@ -51,6 +51,45 @@ if not HF_USERNAME:
 @app.get("/")
 async def root():
     return {"message": "Hello from Loraly! This is the backend."}
+
+# ------------------------------------------------- FINALIZE TRAINING ------------------------------------------------- #
+
+@app.post("/finalize-training")
+async def finalize_training_endpoint(request: Request):
+    """
+    Called when a LoRA training pod has finished uploading the model.
+    Expects JSON: { "lora_id": "<LORA ID>", "status": "upload_complete", "repo_url": "<HF URL>" }
+    """
+    data = await request.json()
+    lora_id = data.get("lora_id")
+    status = data.get("status")
+    repo_url = data.get("repo_url")
+
+    if not lora_id or status != "upload_complete" or not repo_url:
+        return JSONResponse(
+            {"error": "Missing or invalid lora_id, status, or repo_url"}, 
+            status_code=400
+        )
+
+    print(f"🟢 Received finalize notification for LoRA {lora_id} (upload complete)")
+
+    try:
+        # Fetch pod_id from Supabase
+        resp = supabase.table("loras").select("pod_id").eq("id", lora_id).single().execute()
+        pod_id = resp.data.get("pod_id") if resp.data else None
+
+        if not pod_id:
+            print(f"⚠️ No pod_id found for LoRA {lora_id}")
+            return JSONResponse({"error": "Pod ID not found for this LoRA"}, status_code=404)
+        
+        finalize_training(lora_id, pod_id)
+
+        return {"status": "success", "message": f"Training finalized for LoRA {lora_id}"}
+
+    except Exception as e:
+        print(f"❌ Error finalizing training for LoRA {lora_id}: {e}")
+        traceback.print_exc()
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 # ------------------------------------------------- CHATTING API ------------------------------------------------- #
 # 🔁 Correct way to hydrate class from deployed Modal App

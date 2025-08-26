@@ -4,10 +4,9 @@ import os
 import time
 import requests
 from dotenv import load_dotenv
-from huggingface_hub import HfApi, HfFolder, Repository
+from huggingface_hub import HfApi
 from supabase import create_client
 from enum import Enum
-from datetime import datetime
 
 class LoraStatus(str, Enum):
     TRAINING = "training"
@@ -32,33 +31,51 @@ env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env.l
 load_dotenv(dotenv_path=env_path)
 supabase = create_client(os.getenv('NEXT_PUBLIC_SUPABASE_URL'), os.getenv('SUPABASE_SERVICE_ROLE_KEY'))
 
-def train_lora(lora_id: str,  dataset_file_path: str):
+# ----------- GLOBAL HfApi INSTANCE -----------
+HF_TOKEN = os.getenv("HF_TOKEN")
+if not HF_TOKEN:
+    raise RuntimeError("❌ HF_TOKEN not found in environment")
+
+api = HfApi(token=HF_TOKEN)
+
+def train_lora(lora_id: str, dataset_file_path: str):
     dataset_repo_id = f"{os.getenv('HF_USERNAME')}/{lora_id}-dataset"
-    api = HfApi(token=os.getenv('HF_TOKEN'))
-    pod_id = None
-    
     update_lora_status(lora_id, LoraStatus.TRAINING)
 
     try:
-        # Upload dataset to to HF and start training
         upload_dataset_to_hf(api, dataset_file_path, dataset_repo_id)
-        training_successful, pod_id = start_training_pipeline(api, lora_id, dataset_repo_id)
-
-
-        if training_successful:
-            add_created_lora_to_user(lora_id)  # Add LoRA to creator’s profile in Supabase
-            update_lora_status(lora_id, LoraStatus.TRAINING_COMPLETED)
-        else:
+        pod_id = start_training_pipeline(api, lora_id, dataset_repo_id)
+        
+        if not pod_id:
+            print("❌ Failed to start training pipeline.")
             update_lora_status(lora_id, LoraStatus.TRAINING_FAILED)
-
-    finally:
+            cleanup(dataset_file_path)
+            return
+        
+        _ = supabase.table(TABLE_LORAS).update({"pod_id": pod_id}).eq(COL_LORA_ID, lora_id).execute()
+        print(f"✅ Pod ID {pod_id} saved to database for LoRA {lora_id}.")
+        
+    except Exception as e:
+        print(f"❌ Training pipeline error: {e}")
+        update_lora_status(lora_id, LoraStatus.TRAINING_FAILED)
         cleanup(dataset_file_path)
-        if pod_id:
-            delete_pod(pod_id)
-    
-    return
 
-def upload_dataset_to_hf(api: HfApi, dataset_file_path: str, dataset_repo_id: str):
+def finalize_training(lora_id: str, pod_id: str):
+    """Called when backend notifies us training finished. Checks HF, updates DB, and cleans up."""
+
+    print("⏳ Checking if LoRA model is available on Hugging Face...")
+    if check_lora_model_uploaded(api, lora_id):
+        print(f"✅ LoRA model {lora_id} found on Hugging Face.")
+        add_created_lora_to_user(lora_id)
+        update_lora_status(lora_id, LoraStatus.TRAINING_COMPLETED)
+    else:
+        print(f"❌ LoRA model {lora_id} not found on Hugging Face.")
+        update_lora_status(lora_id, LoraStatus.TRAINING_FAILED)
+
+    if pod_id:
+        delete_pod(pod_id)
+
+def upload_dataset_to_hf(dataset_file_path: str, dataset_repo_id: str):
     try:
         api.create_repo(repo_id=dataset_repo_id, repo_type="dataset", exist_ok=True)
         api.upload_file(
@@ -90,9 +107,7 @@ def get_config_template(model_id: str) -> str:
         # Default to Mistral config for safety
         return "lora_training_config_mistral.yaml"
     
-def start_training_pipeline(api: HfApi, lora_id: str, dataset_repo_id: str) -> tuple[bool, str | None]:
-    
-    training_start = datetime.now()
+def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> str | None:
     
     model_id = os.getenv("HF_MODEL_ID")
     config_template = get_config_template(model_id)
@@ -107,7 +122,7 @@ def start_training_pipeline(api: HfApi, lora_id: str, dataset_repo_id: str) -> t
     if not os.path.exists(config_template_path):
         print(f"❌ ERROR: Config template file not found at: {config_template_path}")
         print("   Please make sure the file exists in the lora_training_configs folder.")
-        return False, None
+        return None
     
     print("🔄 Starting training pipeline...")
     model_output_path = f"output/{lora_id}"
@@ -115,41 +130,13 @@ def start_training_pipeline(api: HfApi, lora_id: str, dataset_repo_id: str) -> t
     
     pod_id = create_pod(lora_id, dataset_repo_id, model_output_path, config_content)
     if not pod_id:
-        return False, None
+        return None
 
     if not wait_for_pod_ready(lora_id):
-        return False, pod_id
+        return pod_id
 
-    print("✅ Training config uploaded to pod.")
-    print("⏳ Waiting for model to appear on HF...")
-
-    max_hours = 24  # Allow a full day of training till timeout
-
-    minutes_to_wait = 2  # check every 2 minutes
-    seconds_to_wait = minutes_to_wait * 60  # 120 seconds
-    count = 0
-
-    while (count * minutes_to_wait) / 60 < max_hours:  # convert minutes to hours for comparison
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # current timestamp
-
-        if check_lora_model_uploaded(api, lora_id):
-            print(f"✅ LoRA model found on HF.")
-            
-            training_end = datetime.now()
-            duration = training_end - training_start
-            hours = duration.total_seconds() / 3600
-            
-            print(f"🕒 LoRA took {hours:.2f} hours to train.")
-            return True, pod_id
-
-        print(f"---\nIt is {now} \n ⚙️ LoRA still not uploaded. \n Will check again in {minutes_to_wait} minutes.\n---")
-        
-        time.sleep(seconds_to_wait)
-        count += 1
-
-    # If max wait is hit:
-    print(f"⏰ LoRA model training timeout of {max_hours} hours reached.")
-    return False, pod_id
+    print(f"✅ Pod {pod_id} is ready and training has started.")
+    return pod_id
 
 
 def create_pod(lora_id: str, dataset_repo_id: str, model_output_path: str, config_content: str) -> str:
@@ -273,21 +260,35 @@ def generate_config(template_path: str, dataset_repo_id: str, model_output_path:
 
     return content
 
-def check_lora_model_uploaded(api: HfApi, lora_id: str) -> bool:
-    model_repo_id = f"{os.getenv('HF_USERNAME')}/{lora_id}-model" # DO NOT CHANGE THIS -> the docker image will create this repo
+import time
+
+def check_lora_model_uploaded(lora_id: str) -> bool:
+    model_repo_id = f"{os.getenv('HF_USERNAME')}/{lora_id}-model"  # DO NOT CHANGE THIS -> the docker image will create this repo
     print(f"🔍 Checking if LoRA model {model_repo_id} exists on HuggingFace...")
 
-    try:
-        files = api.list_repo_files(repo_id=model_repo_id, repo_type="model")
-        return any(
-            "adapter" in f or 
-            "pytorch_model" in f or 
-            f.endswith(".safetensors") 
-            for f in files
-        )
-    except Exception as e:
-        print(f"❌ HuggingFace Model not found yet ... waiting ...")
-        return False
+    for attempt in range(2):
+        try:
+            files = api.list_repo_files(repo_id=model_repo_id, repo_type="model")
+            found = any(
+                "adapter" in f or 
+                "pytorch_model" in f or 
+                f.endswith(".safetensors") 
+                for f in files
+            )
+            if found:
+                print(f"✅ LoRA model {lora_id} found on HuggingFace.")
+                return True
+            else:
+                print(f"⚠️ LoRA model not found on attempt {attempt + 1}.")
+        except Exception as e:
+            print(f"❌ Error checking LoRA model on attempt {attempt + 1}: {e}")
+
+        if attempt == 0:
+            print("⏳ Waiting 60 seconds before retrying...")
+            time.sleep(60)
+
+    print(f"❌ LoRA model {lora_id} not found after 2 attempts.")
+    return False
 
 def delete_pod(pod_id: str):
     url = f"https://rest.runpod.io/v1/pods/{pod_id}"
