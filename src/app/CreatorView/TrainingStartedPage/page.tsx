@@ -22,10 +22,11 @@ export default function TrainingStartedPage() {
       <div style={styles.animation}>
         <div className="spinner" />
       </div>
-      <h1>Voice generation has started!</h1>
-      <p>It usually takes about 15-20 minutes to finish training with a 10,000 word chat. </p>
-      <p>Longer chats may take more time. </p>
-      <p>Check your dashboard later to see when it’s ready.</p>
+      <h1>Training in progress!</h1> 
+      <p>Your custom AI model is learning to replicate the writing style you provided. </p>
+      <p> Processing a 10,000-word conversation typically takes 15-20 minutes.</p> 
+      <p>For larger data sets, please allow for extra processing time.</p> 
+      <p>Check your dashboard later to begin generating text with your new model.</p>
 
       <style jsx>{`
         .spinner {
