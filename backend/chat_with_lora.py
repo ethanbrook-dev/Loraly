@@ -207,8 +207,10 @@ class Phi2Chat:
             # Prepend so order is correct
             lines.insert(0, entry)
 
-        # Always end with assistant’s "turn to speak"
-        lines.append("<|im_start|>assistant\n")
+        # Only add assistant prompt if last turn was user
+        if history and history[-1]["sender"] == participants.get("user", "You"):
+            lines.append("<|im_start|>assistant\n")
+        
         return "\n".join(lines)
 
     
