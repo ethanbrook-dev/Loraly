@@ -224,6 +224,26 @@ class Phi2Chat:
         return text.strip()
 
     def filter_output(self, text: str) -> str:
+        """
+        Cleans the generated text:
+        - Removes all ChatML tokens like <|im_start|>, <|im_end|>, and any <|…|> fragments
+        - Removes any "<This message was edited…>" artifacts
+        - Strips extra whitespace
+        """
+        # Remove any <@…> or similar junk
+        text = re.sub(r"<[@:].*?>", "", text)
+
+        # Remove any ChatML-style <|…|> tokens
+        text = re.sub(r"<\|.*?\|>", "", text)
+
+        # Remove edited message artifacts like "<This message was edited by…>"
+        text = re.sub(r"<This message was edited.*?>", "", text, flags=re.IGNORECASE)
+
+        # Collapse multiple whitespaces/newlines to a single space
+        text = re.sub(r"\s+", " ", text)
+
+        return text.strip()
+
         # Remove junk tokens like <@a>
         text = re.sub(r"<[@:].*?>", "", text)
         
@@ -338,9 +358,16 @@ class Phi2Chat:
         generated_ids = outputs[0][inputs["input_ids"].shape[1]:]
 
         reply = self.tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
+    
+        print(f"{YELLOW}[INFO] Raw reply before filtering: {reply}{RESET}")
         
         reply = self.filter_output(reply)
+    
+        print(f"{YELLOW}[INFO] Reply after filtering: {reply}{RESET}")
+        
         reply = self.truncate_to_last_sentence(reply)
+        
+        print(f"{YELLOW}[INFO] Reply after truncating to last sentence: {reply}{RESET}")
         
         print(f"{GREEN}[SUCCESS] Reply ready: {reply}{RESET}")
         return reply
