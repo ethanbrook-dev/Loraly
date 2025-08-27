@@ -71,9 +71,6 @@ def analyze_dataset(jsonl_path: str, participants: List[str]):
     if slang_count / max(1, len(all_msgs)) > 0.05:
         style_bits.append("Include slang if it fits the context")
 
-    # Always encourage continuation
-    style_bits.append("Ask a follow-up question to keep the chat going")
-
     end_prompt = "(" + ", and ".join(style_bits) + ".)"
 
     return {
