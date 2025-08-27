@@ -101,9 +101,9 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
 
   const handleConfirm = async () => {
     if (!selectedParticipant || !loraId) {
-    setError('Please select whose voice should be mimicked.');
-    return;
-  }
+      setError('Please select whose voice should be mimicked.');
+      return;
+    }
 
     const MAX_GAP_HOURS = 1; // split if gap > 1 hour
 
@@ -120,11 +120,9 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
 
     for (const msg of sortedMessages) {
       const speaker = msg.name === selectedParticipant ? 'Assistant' : 'User';
-      const line = `${speaker}: ${msg.message}`;
+      let messageText = msg.message.trim();
 
-      // skip if it's exactly the same as the last added line
-      if (line === lastAddedLine) continue;
-
+      // Check if we should start a new block (based on time gap)
       let startNewBlock = false;
       if (lastTimestamp) {
         const diffHours = (msg.timestamp.getTime() - lastTimestamp.getTime()) / 1000 / 3600;
@@ -138,8 +136,31 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
         currentBlock = [];
       }
 
-      currentBlock.push(line);
-      lastAddedLine = line;
+      // If same speaker as last message in currentBlock, merge instead of push
+      if (currentBlock.length > 0) {
+        const lastLine = currentBlock[currentBlock.length - 1];
+        const [lastSpeaker, lastMsg] = lastLine.split(/:\s(.+)/);
+
+        if (lastSpeaker === speaker) {
+          let fixedLastMsg = lastMsg.trim();
+          // Ensure punctuation before merging
+          if (!/[.!?]$/.test(fixedLastMsg)) {
+            fixedLastMsg += '.';
+          }
+          currentBlock[currentBlock.length - 1] = `${speaker}: ${fixedLastMsg} ${messageText}`;
+          lastAddedLine = currentBlock[currentBlock.length - 1];
+          lastTimestamp = msg.timestamp;
+          continue; // skip normal push
+        }
+      }
+
+      // Normal push if not same speaker
+      const line = `${speaker}: ${messageText}`;
+      if (line !== lastAddedLine) {
+        currentBlock.push(line);
+        lastAddedLine = line;
+      }
+
       lastTimestamp = msg.timestamp;
     }
 
