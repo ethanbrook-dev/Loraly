@@ -131,7 +131,7 @@ async def chat(request: Request) -> JSONResponse:
 
         response = chat_worker.chat_with_lora.remote(
             lora_repo=f"{HF_USERNAME}/{loraid}-model",
-            chat_history=chatHistory,
+            chat_history=json.dumps(chatHistory),
             max_new_tokens=max_new_tokens,
             end_prompt=end_prompt,
             participants=participants

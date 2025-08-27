@@ -4,6 +4,7 @@ import modal
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import PeftModel
 import torch
+import json
 import re
 from huggingface_hub import login
 
@@ -215,12 +216,19 @@ class Phi2Chat:
     def chat_with_lora(
         self,
         lora_repo: str,
-        chat_history: list,
+        chat_history: str, # json string of [{sender, message}, ...]
         max_new_tokens: int,
         end_prompt: str = None,
         participants: dict = None
     ) -> str:
         print(f"{YELLOW}[INFO] chat_with_lora called{RESET}")
+        
+        # Deserialize JSON string into a Python list
+        try:
+            chat_history = json.loads(chat_history)
+        except Exception as e:
+            print(f"{RED}[ERROR] Failed to parse chat_history JSON: {e}{RESET}")
+            raise ValueError("Invalid chat_history JSON provided") from e
 
         # This ensures the base model is loaded (only happens on first call)
         self._ensure_base_model_loaded(self.base_model_repo, self.hf_token)
