@@ -1,7 +1,7 @@
 # chat_with_lora.py
 
 import modal
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, StoppingCriteria, StoppingCriteriaList
 from peft import PeftModel
 import torch
 import json
@@ -213,6 +213,41 @@ class Phi2Chat:
         
         return "\n".join(lines)
 
+    @staticmethod
+    def get_stop_convo_endings():
+        """
+        Returns a curated list of phrases that typically mark
+        the end of a conversation.
+        """
+        return [
+            "good night",
+            "bye",
+            "see you",
+            "see you later",
+            "goodbye",
+            "farewell",
+            "take care",
+            "talk soon",
+            "have a nice day",
+            "have a good day",
+            "see ya",
+            "ciao",
+            "later",
+            "peace out",
+            "catch you later",
+            "until next time",
+            "that's all",
+            "the end",
+            "over and out",
+            "i'm signing off",
+            "cheers",
+            "adios",
+            "done for now",
+            "that's it",
+            "closing now",
+            "see you tomorrow",
+            "end of chat",
+        ]
     
     @modal.method()
     def chat_with_lora(
@@ -255,6 +290,10 @@ class Phi2Chat:
 
         inputs = self.tokenizer(formatted_prompt.strip(), return_tensors="pt").to(lora_model.device)
 
+        stopping_criteria = StoppingCriteriaList([
+            KeywordStoppingCriteria(self.tokenizer, self.get_stop_convo_endings())
+        ])
+
         print(f"{YELLOW}[INFO] Generating response...{RESET}")
         with torch.no_grad():
             outputs = lora_model.generate(
@@ -265,7 +304,8 @@ class Phi2Chat:
                 do_sample=True,
                 repetition_penalty=1.3,
                 pad_token_id=self.tokenizer.eos_token_id,
-                eos_token_id=self.tokenizer.eos_token_id  # uses the tokenizer-defined EOS consistently
+                eos_token_id=self.tokenizer.eos_token_id,  # uses the tokenizer-defined EOS consistently
+                stopping_criteria=stopping_criteria
             )
 
         # Slice off the input so only new tokens remain
@@ -289,3 +329,23 @@ class Phi2Chat:
         # Clean extra whitespace/newlines
         text = "\n".join(line.strip() for line in text.splitlines() if line.strip())
         return text.strip()
+
+class KeywordStoppingCriteria(StoppingCriteria):
+    def __init__(self, tokenizer, keywords):
+        self.tokenizer = tokenizer
+        self.keywords = [kw.lower() for kw in keywords]
+        self.generated_text = ""
+
+    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs):
+        # Decode only the newly generated token
+        new_token_id = input_ids[0, -1].item()
+        new_text = self.tokenizer.decode([new_token_id], skip_special_tokens=True)
+        self.generated_text += new_text.lower()
+
+        # If any keyword shows up, stop
+        for kw in self.keywords:
+            if kw in self.generated_text:
+                print(f"[STOPPING] Triggered on keyword: {kw}")
+                return True
+
+        return False
