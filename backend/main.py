@@ -155,9 +155,18 @@ async def generate_voice(request: Request, background_tasks: BackgroundTasks):
 
     # Convert to JSONL string
     jsonl_str = text_to_axolotl_json(text)
-    
-    # Augment chat to more works (model will learn better with more data)
-    augmented_jsonl_str = augment_dataset(jsonl_str, target_words=200000)
+
+    # Count current words
+    current_word_count = sum(len(json.loads(line)["messages"][0]["content"].split()) 
+                            for line in jsonl_str.splitlines())
+
+    # Augment dataset only if under target
+    TARGET_WORDS = 200_000
+    if current_word_count < TARGET_WORDS:
+        augmented_jsonl_str = augment_dataset(jsonl_str, target_words=TARGET_WORDS)
+    else:
+        print(f"-> Dataset already has {current_word_count} words, skipping augmentation")
+        augmented_jsonl_str = jsonl_str
 
     with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".jsonl", encoding="utf-8") as temp_file:
         temp_file_path = temp_file.name
