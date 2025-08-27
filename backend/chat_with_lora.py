@@ -80,7 +80,7 @@ class Phi2Chat:
             token=hf_token,
             cache_dir="/cache",
             trust_remote_code=False,
-            force_download=True
+            force_download=False
         )
         print(f"{GREEN}[SUCCESS] Tokenizer loaded. Original vocab size: {len(self.tokenizer)}{RESET}")
 
@@ -142,8 +142,8 @@ class Phi2Chat:
 
         # Resize tokenizer / embeddings if needed
         tokenizer_size = len(self.tokenizer)
-        if tokenizer_size > lora_emb[0]:
-            print(f"{MAGENTA}[WARN] Tokenizer vocab ({tokenizer_size}) > LoRA vocab ({lora_emb[0]}). Resizing embeddings...{RESET}")
+        if tokenizer_size != lora_emb[0]:
+            print(f"{MAGENTA}[WARN] Resizing embeddings to match tokenizer ({tokenizer_size}){RESET}")
             lora_model.resize_token_embeddings(tokenizer_size)
             with torch.no_grad():
                 lora_model.get_input_embeddings().weight[:lora_emb[0], :] = self.base_model.get_input_embeddings().weight
@@ -153,47 +153,69 @@ class Phi2Chat:
         self.loaded_loras[lora_repo] = lora_model
         return lora_model
 
-    def format_chatml_user_prompt(
+    def format_chatml_conversation(
         self,
-        user_prompt: str,
+        history: list,
         end_prompt: str = None,
-        participants: dict = None
+        participants: dict = None,
+        max_tokens: int = 1800
     ) -> str:
         """
-        Format the user message for ChatML, appending a dynamic end_prompt.
-        Optionally include the participant's names in natural chat context
-        without breaking Axolotl special tokens.
+        Build a ChatML-style conversation string from chat history,
+        keeping only the most recent turns that fit within max_tokens.
+        
+        Args:
+            history: [{ "sender": "You", "message": "..."}, {...}]
+            end_prompt: Optional system instruction (e.g. "Stay concise.")
+            participants: {"user": "You", "assistant": "Maddy"} 
+                        maps roles to display names
+            max_tokens: rough token budget for history
+        
+        Returns:
+            str: ChatML-formatted prompt ready for tokenization.
         """
-        user_name = participants.get("user") if participants else None
-        assistant_name = participants.get("assistant") if participants else None
+        if participants is None:
+            participants = {"user": "You", "assistant": "Assistant"}
+        
+        lines = []
 
-        # Default end_prompt if not provided
-        end_prompt_text = end_prompt or (
-            "(Answer naturally in the same style, and ask a follow-up question to keep the chat going.)"
-        )
+        # Optional: add a system prompt at the very start
+        if end_prompt:
+            lines.append(f"<|im_start|>system\n{end_prompt}<|im_end|>")
 
-        if user_name:
-            user_text = f"{user_name}: {user_prompt}"
-        else:
-            user_text = user_prompt
+        total_tokens = 0
 
-        # Hint assistant name in the end_prompt
-        if assistant_name:
-            end_prompt_text = f"{end_prompt_text} (Respond as {assistant_name}.)"
+        # Walk backwards through history (most recent first)
+        for turn in reversed(history):
+            # Map sender -> ChatML role
+            if turn["sender"] == participants.get("user", "You"):
+                role = "user"
+            elif turn["sender"] == participants.get("assistant", "Assistant"):
+                role = "assistant"
+            else:
+                role = "user"  # default fallback
 
-        return (
-            "<|im_start|>user\n"
-            f"{user_text}<|im_end|>\n"
-            "<|im_start|>assistant\n"
-            f"{end_prompt_text}<|im_end|>\n"
-        )
+            entry = f"<|im_start|>{role}\n{turn['message']}<|im_end|>"
+
+            # Estimate tokens
+            tokens = len(self.tokenizer.encode(entry))
+            if total_tokens + tokens > max_tokens:
+                break
+            total_tokens += tokens
+
+            # Prepend so order is correct
+            lines.insert(0, entry)
+
+        # Always end with assistant’s "turn to speak"
+        lines.append("<|im_start|>assistant\n")
+        return "\n".join(lines)
 
     
     @modal.method()
     def chat_with_lora(
         self,
         lora_repo: str,
-        prompt: str,
+        chatHistory: list,
         max_new_tokens: int,
         end_prompt: str = None,
         participants: dict = None
@@ -205,13 +227,22 @@ class Phi2Chat:
         # This uses the persistent cache for LoRAs
         lora_model = self.get_lora_model(lora_repo)
 
-        if not prompt.strip():
-            print(f"{MAGENTA}[WARN] Empty prompt received{RESET}")
-            return "[INFO] Empty prompt provided."
+        if not chatHistory or not isinstance(chatHistory, list):
+            print(f"{MAGENTA}[WARN] Empty or invalid chatHistory received{RESET}")
+            return "[INFO] No conversation history provided."
 
-        print(f"{YELLOW}[INFO] Tokenizing prompt...{RESET}")
-        
-        formatted_prompt = self.format_chatml_user_prompt(prompt, end_prompt, participants)
+        # Allocate 80% for history, 20% for new response
+        model_max = getattr(lora_model.config, "max_position_embeddings", 2048)
+        history_budget = int(model_max * 0.8)
+
+        print(f"{YELLOW}[INFO] Building ChatML conversation prompt...{RESET}")
+        formatted_prompt = self.format_chatml_conversation(
+            chatHistory, 
+            end_prompt, 
+            participants, 
+            max_tokens=history_budget
+        )
+
         inputs = self.tokenizer(formatted_prompt.strip(), return_tensors="pt").to(lora_model.device)
 
         print(f"{YELLOW}[INFO] Generating response...{RESET}")
@@ -243,7 +274,7 @@ class Phi2Chat:
         text = re.sub(r"<[@:].*?>", "", text)
         
         # Remove full or partial ChatML tokens
-        text = re.sub(r"<\|im_(start|end)\|?.*?", "", text)
+        text = re.sub(r"<\|im_(start|end)\|>", "", text)
         
         # Clean extra whitespace/newlines
         text = "\n".join(line.strip() for line in text.splitlines() if line.strip())

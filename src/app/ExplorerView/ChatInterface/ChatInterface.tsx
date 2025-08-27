@@ -6,6 +6,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import '../../../../styles/ChatInterfaceStyles.css';
 
+const MAX_CHARS = 4000; // safe approximation (adjust based on model, e.g. 2048 tokens ≈ 4000 chars)
+
 type ChatInterfacePageProps = {
     loraid: string;
     loraName: string;
@@ -20,7 +22,11 @@ export default function ChatInterfacePage({ loraid, loraName }: ChatInterfacePag
 
     const handleSend = async () => {
         if (!input.trim()) return;
-        setChatHistory(prev => [...prev, { sender: 'You', message: input }]);
+
+        // Create updated history with the new user message
+        const updatedHistory = trimHistory([...chatHistory, { sender: 'You', message: input }]);
+        setChatHistory(updatedHistory);
+        
         setIsLoading(true);
 
         const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_BACKEND_URL}/chat`, {
@@ -30,7 +36,7 @@ export default function ChatInterfacePage({ loraid, loraName }: ChatInterfacePag
             },
             body: JSON.stringify({
                 loraid,
-                prompt: input,
+                chatHistory: updatedHistory,
             }),
         });
 
@@ -48,6 +54,21 @@ export default function ChatInterfacePage({ loraid, loraName }: ChatInterfacePag
         setInput('');
         setIsLoading(false);
     };
+
+    function trimHistory(history: { sender: string; message: string }[]) {
+        let totalChars = 0;
+        const trimmed: { sender: string; message: string }[] = [];
+
+        // iterate backwards (most recent first)
+        for (let i = history.length - 1; i >= 0; i--) {
+            const msg = history[i];
+            totalChars += msg.message.length;
+            if (totalChars > MAX_CHARS) break;
+            trimmed.unshift(msg); // prepend so order stays intact
+        }
+
+        return trimmed;
+    }
 
     return (
         <div className="chat-interface-wrapper">

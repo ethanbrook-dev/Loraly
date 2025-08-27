@@ -119,10 +119,10 @@ app.router.lifespan_context = lifespan
 async def chat(request: Request) -> JSONResponse:
     data = await request.json()
     loraid = data.get("loraid")
-    prompt = data.get("prompt")
+    chatHistory = data.get("chatHistory")
 
-    if not loraid or not prompt:
-        return JSONResponse({"error": "Missing loraid or prompt"}, status_code=400)
+    if not loraid or not chatHistory:
+        return JSONResponse({"error": "Missing loraid or chatHistory"}, status_code=400)
 
     try:
         print("🚀 Sending prompt to Modal...")
@@ -131,7 +131,7 @@ async def chat(request: Request) -> JSONResponse:
 
         response = chat_worker.chat_with_lora.remote(
             lora_repo=f"{HF_USERNAME}/{loraid}-model",
-            prompt=prompt,
+            chatHistory=chatHistory,
             max_new_tokens=max_new_tokens,
             end_prompt=end_prompt,
             participants=participants
