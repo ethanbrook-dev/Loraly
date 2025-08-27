@@ -319,14 +319,18 @@ class Phi2Chat:
         return reply
     
     def filter_output(self, text: str) -> str:
-        
-        # Clean junk tokens like <@a>
+        # Remove junk tokens like <@a>
         text = re.sub(r"<[@:].*?>", "", text)
         
-        # Remove full or partial ChatML tokens
+        # Remove ChatML tokens
         text = re.sub(r"<\|im_(start|end)\|>", "", text)
         
+        # Remove end-of-message artifacts from chat exports
+        text = re.sub(r"<\|end of message text body\|>", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"<This message was edited.*?>", "", text, flags=re.IGNORECASE)
+
         # Clean extra whitespace/newlines
+        text = re.sub(r"\s+", " ", text)
         text = "\n".join(line.strip() for line in text.splitlines() if line.strip())
         return text.strip()
 
