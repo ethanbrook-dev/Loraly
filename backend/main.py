@@ -17,6 +17,7 @@ import modal, asyncio
 from supabase import create_client
 
 # Local imports
+from backend.augment_dataset import augment_dataset
 from backend.dataset_analyzer import analyze_dataset
 from backend.train_lora import train_lora, finalize_training
 
@@ -154,10 +155,13 @@ async def generate_voice(request: Request, background_tasks: BackgroundTasks):
 
     # Convert to JSONL string
     jsonl_str = text_to_axolotl_json(text)
+    
+    # Augment chat to more works (model will learn better with more data)
+    augmented_jsonl_str = augment_dataset(jsonl_str, target_words=200000)
 
     with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".jsonl", encoding="utf-8") as temp_file:
         temp_file_path = temp_file.name
-        temp_file.write(jsonl_str)
+        temp_file.write(augmented_jsonl_str)
         temp_file.flush()
     
     # Analyze dataset
