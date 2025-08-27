@@ -56,7 +56,13 @@ The purpose of dataset augmentation is to expand a small chat dataset (e.g., 8.8
   - Number of augmentation iterations
 - Set a **maximum retry count** to avoid infinite loops.
 
-### 4. Output Format
+### 4. Optional Noise Injection
+Minor stylistic variation:
+- Typos, dropped letters, casual abbreviations **only if they already exist in the chat**.
+- Insert emojis in the same way the participant does.
+- Avoid generic templates or new slang that wasn’t in the dataset.
+
+### 5. Output Format
 - Export augmented conversations in **JSONL format**, identical to what `main.py` expects. 
 - Each entry looks like:
     ```json
@@ -69,7 +75,7 @@ The purpose of dataset augmentation is to expand a small chat dataset (e.g., 8.8
     ```
 - The augmented dataset should be **indistinguishable from real conversations** in both style and structure.
 
-### 5. Adaptive Augmentation per LoRA
+### 6. Adaptive Augmentation per LoRA
 - Adjust augmentation based on each participant’s unique style:
 - If they use long messages, emphasize long-form expansions.
 - If they frequently use emojis, keep emoji frequency high.
