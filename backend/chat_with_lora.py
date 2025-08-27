@@ -213,6 +213,32 @@ class Phi2Chat:
         
         return "\n".join(lines)
 
+    def truncate_to_last_sentence(text: str) -> str:
+        """
+        Truncate text to the last full sentence.
+        A sentence ends with '.', '!', or '?'.
+        """
+        sentence_endings = [m.end() for m in re.finditer(r'[.!?]', text)]
+        if sentence_endings:
+            return text[:sentence_endings[-1]].strip()
+        return text.strip()
+
+    def filter_output(self, text: str) -> str:
+        # Remove junk tokens like <@a>
+        text = re.sub(r"<[@:].*?>", "", text)
+        
+        # Remove ChatML tokens
+        text = re.sub(r"<\|im_(start|end)\|>", "", text)
+        
+        # Remove end-of-message artifacts from chat exports
+        text = re.sub(r"<\|end of message text body\|>", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"<This message was edited.*?>", "", text, flags=re.IGNORECASE)
+
+        # Clean extra whitespace/newlines
+        text = re.sub(r"\s+", " ", text)
+        text = "\n".join(line.strip() for line in text.splitlines() if line.strip())
+        return text.strip()
+
     @staticmethod
     def get_stop_convo_endings():
         """
@@ -314,26 +340,11 @@ class Phi2Chat:
         reply = self.tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
         
         reply = self.filter_output(reply)
+        reply = self.truncate_to_last_sentence(reply)
         
         print(f"{GREEN}[SUCCESS] Reply ready: {reply}{RESET}")
         return reply
     
-    def filter_output(self, text: str) -> str:
-        # Remove junk tokens like <@a>
-        text = re.sub(r"<[@:].*?>", "", text)
-        
-        # Remove ChatML tokens
-        text = re.sub(r"<\|im_(start|end)\|>", "", text)
-        
-        # Remove end-of-message artifacts from chat exports
-        text = re.sub(r"<\|end of message text body\|>", "", text, flags=re.IGNORECASE)
-        text = re.sub(r"<This message was edited.*?>", "", text, flags=re.IGNORECASE)
-
-        # Clean extra whitespace/newlines
-        text = re.sub(r"\s+", " ", text)
-        text = "\n".join(line.strip() for line in text.splitlines() if line.strip())
-        return text.strip()
-
 class KeywordStoppingCriteria(StoppingCriteria):
     def __init__(self, tokenizer, keywords):
         self.tokenizer = tokenizer
