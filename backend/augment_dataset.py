@@ -5,7 +5,7 @@ import os
 import time
 from collections import Counter, defaultdict
 
-from slang_terms import get_all_slang_terms
+from .slang_terms import get_all_slang_terms
 
 
 def augment_dataset(jsonl_str: str, target_words: int = 200_000) -> str:
