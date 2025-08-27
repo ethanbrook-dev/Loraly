@@ -143,7 +143,7 @@ class Phi2Chat:
 
         # Resize tokenizer / embeddings if needed
         tokenizer_size = len(self.tokenizer)
-        if tokenizer_size != lora_emb[0]:
+        if tokenizer_size > lora_emb[0]:
             print(f"{MAGENTA}[WARN] Resizing embeddings to match tokenizer ({tokenizer_size}){RESET}")
             lora_model.resize_token_embeddings(tokenizer_size)
             with torch.no_grad():
