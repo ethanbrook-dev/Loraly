@@ -213,7 +213,7 @@ class Phi2Chat:
         
         return "\n".join(lines)
 
-    def truncate_to_last_sentence(text: str) -> str:
+    def truncate_to_last_sentence(self, text: str) -> str:
         """
         Truncate text to the last full sentence.
         A sentence ends with '.', '!', or '?'.
