@@ -56,7 +56,7 @@ The purpose of dataset augmentation is to expand a small chat dataset (e.g., 8.8
   - Number of augmentation iterations
 - Set a **maximum retry count** to avoid infinite loops.
 
-### 4. Optional Noise Injection
+### 4. Noise Injection
 Minor stylistic variation:
 - Typos, dropped letters, casual abbreviations **only if they already exist in the chat**.
 - Insert emojis in the same way the participant does.
