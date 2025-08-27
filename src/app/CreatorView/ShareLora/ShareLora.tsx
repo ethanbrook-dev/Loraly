@@ -25,9 +25,10 @@ type ShareRecipient = {
 type ShareLoraPageProps = {
   loraid: string;
   loraName: string;
+  onShareComplete?: () => void;
 };
 
-export default function ShareLoraPage({ loraid, loraName }: ShareLoraPageProps) {
+export default function ShareLoraPage({ loraid, loraName, onShareComplete }: ShareLoraPageProps) {
   const router = useRouter();
 
   const [query, setQuery] = useState('');
@@ -121,6 +122,8 @@ export default function ShareLoraPage({ loraid, loraName }: ShareLoraPageProps) 
     }
 
     setShareStatus(`${loraName} was successfully shared with ${user.username}!`);
+
+    if (onShareComplete) onShareComplete();
   }
 
   return (

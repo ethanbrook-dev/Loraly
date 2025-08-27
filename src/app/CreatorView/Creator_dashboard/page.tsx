@@ -129,7 +129,17 @@ export default function CreatorDashboard() {
   }
 
   if (sharingLoraId && sharingLoraName) {
-    return <ShareLoraPage loraid={sharingLoraId} loraName={sharingLoraName} />;
+    return (
+      <ShareLoraPage
+        loraid={sharingLoraId}
+        loraName={sharingLoraName}
+        onShareComplete={() => {
+          setSharingLoraId(null);
+          setSharingLoraName(null);
+          router.push('../../../CreatorView/Creator_dashboard'); // optional if ShareLoraPage doesn't redirect itself
+        }}
+      />
+    );
   }
 
   return (
