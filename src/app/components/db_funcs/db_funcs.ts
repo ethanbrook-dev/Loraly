@@ -215,6 +215,11 @@ export async function generateSharedLORAProfilePicSignedUrl(
     path: string,
     expiresInSeconds = 60
 ): Promise<string | null> {
+    // Skip empty or falsy paths
+    if (!path || path.trim() === "") {
+        return null;
+    }
+
     const { data, error } = await supabase
         .storage
         .from(SHARED_LORA_PIC_BUCKET)
