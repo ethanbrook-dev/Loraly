@@ -103,7 +103,7 @@ export default function ExplorerDashboard() {
             <div key={lora.id} className="lora-card">
               <div style={{ width: '80px', height: '80px', position: 'relative' }}>
                 <Image
-                  src={signedLoraPicUrls[lora.id]}
+                  src={signedLoraPicUrls[lora.id] || '/default-user-profile-pic.png'}
                   alt="LoRA Profile"
                   fill
                   style={{ objectFit: 'cover' }}
