@@ -215,7 +215,7 @@ class Phi2Chat:
     def chat_with_lora(
         self,
         lora_repo: str,
-        chatHistory: list,
+        chat_history: list,
         max_new_tokens: int,
         end_prompt: str = None,
         participants: dict = None
@@ -227,8 +227,8 @@ class Phi2Chat:
         # This uses the persistent cache for LoRAs
         lora_model = self.get_lora_model(lora_repo)
 
-        if not chatHistory or not isinstance(chatHistory, list):
-            print(f"{MAGENTA}[WARN] Empty or invalid chatHistory received{RESET}")
+        if not chat_history or not isinstance(chat_history, list):
+            print(f"{MAGENTA}[WARN] Empty or invalid chat_history received{RESET}")
             return "[INFO] No conversation history provided."
 
         # Allocate 80% for history, 20% for new response
@@ -237,7 +237,7 @@ class Phi2Chat:
 
         print(f"{YELLOW}[INFO] Building ChatML conversation prompt...{RESET}")
         formatted_prompt = self.format_chatml_conversation(
-            chatHistory, 
+            chat_history, 
             end_prompt, 
             participants, 
             max_tokens=history_budget
