@@ -16,9 +16,6 @@ MIN_WORDS = 2
 def augment_dataset(jsonl_str: str, target_words: int = 200_000) -> str:
     """LoRA-agnostic conversational dataset augmentation."""
 
-    with open("original_input.jsonl", "w", encoding="utf-8") as f:
-        f.write(jsonl_str)
-
     # ---------- helpers ----------
     def count_words(text):
         return len([w for w in text.split() if w.strip()])
