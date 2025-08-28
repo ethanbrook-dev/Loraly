@@ -13,7 +13,7 @@ PHASE_STRUCT_PROB = 0.12
 MIN_WORDS = 2
 # -------------------------------
 
-def augment_dataset(jsonl_str: str, target_words: int = 200_000) -> str:
+def augment_dataset(jsonl_str: str, target_words: int = 200_000) -> tuple[str, int]:
     """LoRA-agnostic conversational dataset augmentation."""
 
     # ---------- helpers ----------
@@ -207,5 +207,4 @@ def augment_dataset(jsonl_str: str, target_words: int = 200_000) -> str:
             total_words += sum(count_words(m.get("content", "")) for m in conv_variant["messages"])
 
     out_lines = [json.dumps(conv, ensure_ascii=False) for conv in augmented]
-    print(f"\nFinal word count: {total_words} / {target} {'✅' if total_words >= target else '❌'}")
-    return "\n".join(out_lines)
+    return "\n".join(out_lines), total_words
