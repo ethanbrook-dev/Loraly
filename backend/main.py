@@ -60,21 +60,35 @@ async def root():
 @app.post("/finalize-training")
 async def finalize_training_endpoint(request: Request):
     """
-    Called when a LoRA training pod has finished uploading the model.
-    Expects JSON: { "lora_id": "<LORA ID>", "status": "upload_complete", "repo_url": "<HF URL>" }
+    Called when a LoRA training pod has finished (or failed) its workflow.
+
+    Expects JSON:
+    {
+        "lora_id": "<LORA ID>",
+        "status": "<STATUS>",
+        "repo_url": "<HF URL>"   # Only required for 'upload_complete'
+    }
+
+    Possible values for status:
+    - "upload_complete"      : Training finished and model successfully uploaded to Hugging Face.
+    - "cuda_not_available"   : Pod started but no CUDA GPU was available; training did not run.
+    - "training_failed"      : Pod ran but training failed for some other reason.
     """
     data = await request.json()
+    
     lora_id = data.get("lora_id")
     status = data.get("status")
     repo_url = data.get("repo_url")
 
-    if not lora_id or status != "upload_complete" or not repo_url:
-        return JSONResponse(
-            {"error": "Missing or invalid lora_id, status, or repo_url"}, 
-            status_code=400
-        )
+    # Validate input
+    if not lora_id: 
+        return JSONResponse({"error": "Missing or invalid lora_id for finalize-training endpoint"}, status_code=400)
+    if status not in ["upload_complete", "cuda_not_available", "training_failed"]: 
+        return JSONResponse({"error": "Invalid status for finalize-training endpoint"}, status_code=400)
+    if status == "upload_complete" and not repo_url:
+        return JSONResponse({"error": "Missing repo_url for upload_complete status for finalize-training endpoint"}, status_code=400)
 
-    print(f"🟢 Received finalize notification for LoRA {lora_id} (upload complete)")
+    print(f"🟢 Received finalize notification for LoRA {lora_id}")
 
     try:
         # Fetch pod_id from Supabase
@@ -85,7 +99,7 @@ async def finalize_training_endpoint(request: Request):
             print(f"⚠️ No pod_id found for LoRA {lora_id}")
             return JSONResponse({"error": "Pod ID not found for this LoRA"}, status_code=404)
         
-        finalize_training(lora_id, pod_id)
+        finalize_training(lora_id, pod_id, cuda_not_available=(status=="cuda_not_available"))
 
         return {"status": "success", "message": f"Training finalized for LoRA {lora_id}"}
 

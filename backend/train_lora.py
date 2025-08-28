@@ -60,9 +60,14 @@ def train_lora(lora_id: str, dataset_file_path: str):
         update_lora_status(lora_id, LoraStatus.TRAINING_FAILED)
         cleanup(dataset_file_path)
 
-def finalize_training(lora_id: str, pod_id: str):
-    """Called when backend notifies us training finished. Checks HF, updates DB, and cleans up."""
+def finalize_training(lora_id: str, pod_id: str, cuda_not_available: bool = False):
+    """ Finalize the training process based on the status received from the pod """
 
+    if cuda_not_available:
+        update_lora_status(lora_id, LoraStatus.TRAINING_FAILED)
+        print(f"❌ LoRA {lora_id} pod had no CUDA, marked as failed")
+        return {"status": "failed", "message": "CUDA not available"}
+    
     print("⏳ Checking if LoRA model is available on Hugging Face...")
     if check_lora_model_uploaded(lora_id):
         print(f"✅ LoRA model {lora_id} found on Hugging Face.")
