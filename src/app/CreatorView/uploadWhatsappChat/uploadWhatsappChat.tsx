@@ -177,8 +177,6 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
         });
       });
 
-      console.log('Total word count:', wordCount);
-
       const fullText = conversationBlocks.map(block => JSON.stringify({ text: block })).join('\n');
 
       if (wordCount < MIN_WORDS_FOR_LORA_GEN) {
@@ -186,7 +184,7 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
           `You have ${wordCount} words.\nRecommended minimum: ${MIN_WORDS_FOR_LORA_GEN} words.\n\nDo you want to go ahead and generate the voice anyway?`
         );
         if (!proceed) return;
-      };
+      }; // TODO: If augmenting ds preseves style, remove this check
 
       try {
         setGenerating(true);
@@ -267,7 +265,7 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
             onClick={handleConfirm}
             disabled={generating}
           >
-            {generating ? 'Generating Voice...' : 'Confirm & Generate Voice'}
+            {generating ? 'Processing... do not exit' : 'Confirm & Generate Voice'}
           </button>
         </section>
       )}

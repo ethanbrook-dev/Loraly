@@ -105,8 +105,8 @@ export default function CreatorDashboard() {
     fetchLoras();
   }, [userId]);
 
+  // Reset loading state when component mounts
   useEffect(() => {
-    // Reset loading state when component mounts
     setLoadingLoraIDs({});
   }, []);
 

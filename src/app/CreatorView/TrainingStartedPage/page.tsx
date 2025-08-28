@@ -1,31 +1,17 @@
 'use client';
 
-// React imports
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-
 export default function TrainingStartedPage() {
-  const router = useRouter();
-
-  const x = 15; // Set the number of seconds to wait before redirecting
-
-  // Redirect back to dashboard after x seconds
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      router.push('../../../CreatorView/Creator_dashboard');
-    }, 1000 * x); // x seconds
-    return () => clearTimeout(timer);
-  }, [router]);
 
   return (
     <main style={styles.container}>
       <div style={styles.animation}>
         <div className="spinner" />
       </div>
-      <h1>Training in progress!</h1> 
-      <p>Your custom AI model is learning to replicate the writing style you provided. </p>
-      <p> Processing a 10,000-word conversation typically takes 15-20 minutes.</p> 
-      <p>For larger data sets, please allow for extra processing time.</p> 
+      <h1>Training in progress!</h1>
+      <p style={styles.important}>You may now exit the page</p>
+      <p>Your custom AI model is learning to replicate the writing style you provided.</p>
+      <p>Processing a 10,000-word conversation typically takes 15-20 minutes.</p>
+      <p>For larger data sets, please allow for extra processing time.</p>
       <p>Check your dashboard later to begin generating text with your new model.</p>
 
       <style jsx>{`
@@ -58,5 +44,10 @@ const styles = {
   },
   animation: {
     marginBottom: '1rem',
+  },
+  important: {
+    color: '#e74c3c',
+    fontWeight: 'bold',
+    fontSize: '18px',
   },
 };
