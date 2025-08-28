@@ -1,71 +1,82 @@
 """
 slang_terms.py
 
-This module contains a curated list of modern slang terms that can be used
-to detect or augment conversational datasets. 
+This module contains a comprehensive, curated list of modern slang terms,
+chat fillers, abbreviations, emojis, and common misspellings/variants for
+use in conversational dataset augmentation.
 
-NOTE: Some entries include common misspellings or variant forms (e.g., "lowkey" -> "lokey", "aight" -> "ight") 
-to capture casual typing in chats and social media.
-
-It also provides a function to retrieve them, with an option to return everything in lowercase.
+All terms include:
+- Classic slang
+- Modern slang / viral trends
+- Fillers and casual interjections
+- Typo forms / shorthand / vowel drops
+- Emphasized or repeated letters (e.g., "loooool", "yesss")
 """
 
-# Curated slang list with misspellings/variants
+# -------------------------------
+# Full slang, filler, and typo list
+# -------------------------------
 _SLANG_TERMS = [
-    # Classic / modern slang
-    "Ace", "Aight", "Ight", "Airhead", "Amped", "A-game", "Afterparty", "Awks", "Aren’tcha",
-    "Antsy", "Asap", "Axed", "All-out",
-    "Bae", "Banger", "Boujee", "Bro", "Buzzkill", "Bummer", "Boss",
-    "Beef", "Blow off", "Benched",
-    "Cap", "Clout", "Cringe", "Creep", "Cheesy", "Clown", "Cuffed", "Chop it up", "Cop", "Cash out",
-    "Dope", "Dank", "Ditch", "Dub", "Drip", "Dime", "Drop", "Dummy", "Don’t trip", "Dig it",
-    "Decked out", "Extra", "Eww", "Ego trip", "Emo", "E-girl", "E-boy", "Endgame",
-    "Eye candy",
-    "Flex", "FOMO", "Fam", "Freak out", "Flaky", "Fired up", "Facepalm", "Feelin’ it", "Flip out", "Fake it",
-    "Frontin’", "Fire", "Fuzz", "Fly", "Flop",
-    "Ghost", "Goat", "Gassed", "Grind", "Gucci", "Gig", "Glow up", "Goner", "Gutsy", "Geek out", "Gimme",
-    "Grit", "Goof",
-    "Hype", "Hater", "Hangry", "Hit up", "Hooked", "Homie", "Hot mess", "Hop off", "High-key", "Hecka", "Hustle",
-    "Hyped up", "Hold up", "Hit the spot", "Heat",
-    "I’m down", "Iffy", "Icy", "IDK", "I’m game", "IRL", "It’s lit", "I’m shook", "In your feels", "I’m vibing", "It slaps",
-    "Jelly", "Jit", "Juiced", "Janky", "J chillin’", "Jam", "Joke’s on you", "Jawn", "Jumped",
-    "Jonesing", "Jammed up", "Juice", "Jive", "Jaw-dropper",
-    "Kicks", "Krazy", "K.O.", "Killin’ it", "Keep it real", "Keke", "Kickback", "Kaput",
-    "Kool", "Keyed up", "Keep cool", "Knock off",
-    "Lit", "Low-key", "Lokey", "LOL", "Lolll", "Lurker", "Link up", "Legit", "Loop in", "Litty", "Locked in",
-    "Lagging", "Level up", "Lay low", "Let’s roll",
-    "Mood", "MIA", "Mocked", "Mob", "Messy", "Maxed out", "Mic drop", "Mad", "Move on", "Major",
-    "Make bank", "Mashup", "Mixed signals",
-    "No cap", "Nailed it", "NGL", "Noob", "Nopes", "Nah",
-    "No sweat", "Not it", "Nuked", "No worries",
-    "On fleek", "OMG", "Owned", "Off the hook", "On point", "Outfit check", "On blast", "Over it",
-    "Out cold", "On deck", "Over the top", "Oof", "On repeat", "Off day",
-    "Props", "Pumped", "Peeps", "Pick-me", "Pop off", "Plug", "Pushy", "Packed", "Popcorn", "Paper", "Peaced out",
-    "Poppin’", "Psyched", "Put on blast", "Party foul",
-    "Queen", "Quirky", "Quit it", "Quickie", "Quiet flex", "Quack", "Quake", "Quench", "Quicks", "Quip",
-    "Queue up", "Quirkin’", "Quick buck", "Quarterbacking", "Quitter",
-    "Roasted", "Rizz", "Ride or die", "Ratchet", "Rage", "Real talk", "Ran off", "Receipts", "Red flag", "Rekt",
-    "Rich vibes", "Rando", "Roll deep", "Run it",
-    "Savage", "Snatched", "Shady", "Slay", "Ship", "Spill", "Squad", "Shook", "Stan", "Sus", "Simmer down", "Snap",
-    "Softie", "Smash", "Swipe",
-    "Tea", "Thirsty", "Throw shade", "Turnt", "Trashed", "Tight", "TMI", "Tool", "Tapped", "Top-tier", "Trendsetter",
-    "Talk trash", "Take L", "Totes", "Troll",
-    "Ugh", "Up for it", "Unreal", "Uber", "Unfriend", "Upbeat", "Upgrade", "Uncool", "Ugh", "Not cool bro", "Not cool man",
-    "Unbothered", "Upcycle",
-    "Vibe", "Viral", "Vexed", "Vibing", "Valid", "Vent", "Vids", "Vacay", "Versed", "Villain era", "Vroom",
-    "Voice note", "Vlog", "Volley",
-    "Woke", "Whip", "Wavy", "Wack", "Wrecked", "Weak", "Wrap it up", "Word", "Wannabe", "Wildin’", "Whatevs",
-    "Wing it", "Whoa", "Work it", "Walk off",
-    "Xoxo", "Xtra", "X-ray eyes", "X-ing out", "X-factor", "Xed", "Xhausted", "Xplode", "Xpress", "Xactly",
-    "X-game mode", "X-perience", "X-treme", "X-it", "Xhale",
-    "Yas", "Yikes", "YOLO", "Y’all", "Yeet", "Yawnfest", "Yard", "Yapper", "Yoloed", "Yanked", "Yummy", "Yawn",
-    "Yellfest", "You good?",
-    "Zonked", "Zoomer", "Zing", "Zapped", "Zesty", "Z-list", "Zonk", "Zit-faced", "Zilla", "Zapped out", "Zip it",
-    "Zipped", "Zero chill", "Zooming", "Zany",
+    # Classic & modern slang
+    "ace", "aight", "ight", "airhead", "amped", "a-game", "afterparty", "awks", "aren'tcha",
+    "antsy", "asap", "axed", "all-out",
+    "bae", "banger", "boujee", "bro", "buzzkill", "bummer", "boss",
+    "beef", "blow off", "benched",
+    "cap", "clout", "cringe", "creep", "cheesy", "clown", "cuffed", "chop it up", "cop", "cash out",
+    "dope", "dank", "ditch", "dub", "drip", "dime", "drop", "dummy", "don't trip", "dig it",
+    "decked out", "extra", "eww", "ego trip", "emo", "e-girl", "e-boy", "endgame",
+    "eye candy",
+    "flex", "fomo", "fam", "freak out", "flaky", "fired up", "facepalm", "feelin’ it", "flip out", "fake it",
+    "frontin’", "fire", "fuzz", "fly", "flop",
+    "ghost", "goat", "gassed", "grind", "gucci", "gig", "glow up", "goner", "gutsy", "geek out", "gimme",
+    "grit", "goof",
+    "hype", "hater", "hangry", "hit up", "hooked", "homie", "hot mess", "hop off", "high-key", "hecka", "hustle",
+    "hyped up", "hold up", "hit the spot", "heat",
+    "i'm down", "iffy", "icy", "idk", "i'm game", "irl", "it's lit", "i'm shook", "in your feels", "i'm vibing", "it slaps",
+    "jelly", "jit", "juiced", "janky", "j chillin’", "jam", "joke’s on you", "jawn", "jumped",
+    "jonesing", "jammed up", "juice", "jive", "jaw-dropper",
+    "kicks", "krazy", "k.o.", "killin’ it", "keep it real", "keke", "kickback", "kaput",
+    "kool", "keyed up", "keep cool", "knock off",
+    "lit", "low-key", "lokey", "lol", "lolll", "loooool", "lurker", "link up", "legit", "loop in", "litty", "locked in",
+    "lagging", "level up", "lay low", "let’s roll",
+    "mood", "mia", "mocked", "mob", "messy", "maxed out", "mic drop", "mad", "move on", "major",
+    "make bank", "mashup", "mixed signals",
+    "no cap", "nailed it", "ngl", "noob", "nopes", "nah",
+    "no sweat", "not it", "nuked", "no worries",
+    "on fleek", "omg", "owned", "off the hook", "on point", "outfit check", "on blast", "over it",
+    "out cold", "on deck", "over the top", "oof", "on repeat", "off day",
+    "props", "pumped", "peeps", "pick-me", "pop off", "plug", "pushy", "packed", "popcorn", "paper", "peaced out",
+    "poppin’", "psyched", "put on blast", "party foul",
+    "queen", "quirky", "quit it", "quickie", "quiet flex", "quack", "quake", "quench", "quicks", "quip",
+    "queue up", "quirkin’", "quick buck", "quarterbacking", "quitter",
+    "roasted", "rizz", "ride or die", "ratchet", "rage", "real talk", "ran off", "receipts", "red flag", "rekt",
+    "rich vibes", "rando", "roll deep", "run it",
+    "savage", "snatched", "shady", "slay", "ship", "spill", "squad", "shook", "stan", "sus", "simmer down", "snap",
+    "softie", "smash", "swipe",
+    "tea", "thirsty", "throw shade", "turnt", "trashed", "tight", "tmi", "tool", "tapped", "top-tier", "trendsetter",
+    "talk trash", "take l", "totes", "troll",
+    "ugh", "up for it", "unreal", "uber", "unfriend", "upbeat", "upgrade", "uncool", "not cool bro", "not cool man",
+    "unbothered", "upcycle",
+    "vibe", "viral", "vexed", "vibing", "valid", "vent", "vids", "vacay", "versed", "villain era", "vroom",
+    "voice note", "vlog", "volley",
+    "woke", "whip", "wavy", "wack", "wrecked", "weak", "wrap it up", "word", "wannabe", "wildin’", "whatevs",
+    "wing it", "whoa", "work it", "walk off",
+    "xoxo", "xtra", "x-ray eyes", "x-ing out", "x-factor", "xed", "xhausted", "xplode", "xpress", "xactly",
+    "x-game mode", "x-perience", "x-treme", "x-it", "xhale",
+    "yas", "yikes", "yolo", "y’all", "yeet", "yawnfest", "yard", "yapper", "yoloed", "yanked", "yummy", "yawn",
+    "yellfest", "you good?", "yoo", "yeaaah", "yeettt", "yaaasss",
+    "zonked", "zoomer", "zing", "zapped", "zesty", "z-list", "zit-faced", "zilla", "zapped out", "zip it",
+    "zipped", "zero chill", "zooming", "zany",
 
-    # Additional modern / viral slang
-    "Bussin’", "Cheugy", "Simp", "Finna", "Mog", "Pull up", "My homie",
-    "Rofl", "Lmao", "Lmfao"
+    # Viral / trendy / fillers
+    "bussin’", "cheugy", "simp", "finna", "mog", "pull up", "my homie",
+    "rofl", "lmao", "lmfao", "lolz", "lolol", "lool", "haha", "heh", "huh", "meh", "ugh", "idk", "idk tho", "bruh",
+    "tbh", "fr", "ngl", "omfg", "yolo", "smh", "ikr", "irl", "fml", "btw", "wtf", "omw", "afk",
+    "g2g", "bff", "bffs", "jk", "jk lol", "nvm", "lmbo", "lmfaooo", "sksksk", "and i oop", "yeet yeet", "yeetttt",
+    "sksk", "uwu", "owo", "rawr", "boi", "sis", "fam", "fam bam", "bet", "cap", "no cap", "sheesh", "cheers",
+    "fr fr", "lmk", "wyd", "wtp", "stfu", "stfu lol", "lololol", "omgg", "yesss", "yep", "yaaaas", "yaaassss", "yep yep",
+    "lit af", "on god", "deadass", "big mood", "mood af", "vibe check", "periodt", "ok boomer", "okurrr", "skrrt", "bruhhh", "bruhh",
+    "aight aight", "ight ight", "ighty", "ightyight", "lowkey"
 ]
 
 def get_all_slang_terms(lowercase: bool = False):

@@ -1,7 +1,7 @@
 # main.py - the entrypoint for the backend
 
 # Standard library imports
-import os
+import os, time
 import json
 import tempfile
 import re
@@ -161,12 +161,30 @@ async def generate_voice(request: Request, background_tasks: BackgroundTasks):
                             for line in jsonl_str.splitlines())
 
     # Augment dataset only if under target
-    TARGET_WORDS = 200_000
+    TARGET_WORDS = int(os.getenv("AUGMENT_TARGET_WORDS", 200_000))  # Dynamic for testing. TODO: After testing, set to default xk
     if current_word_count < TARGET_WORDS:
         augmented_jsonl_str = augment_dataset(jsonl_str, target_words=TARGET_WORDS)
+        print("Running dataset augmentation...")
+        
+        temp_file = "temp_augmented.jsonl"
+        with open(temp_file, "w", encoding="utf-8") as f:
+            f.write(augmented_jsonl_str)
+        
+        print(f"\n✅ Augmented dataset written to {temp_file}")
+        print("Waiting 10 seconds before asking to delete...")
+        time.sleep(10)
+
+        choice = input("Do you want to delete the temp file? (y/n): ").strip().lower()
+        if choice == "y":
+            os.remove(temp_file)
+            print("🗑️ Temp file deleted.")
+        else:
+            print(f"📂 Temp file kept at {temp_file}")
     else:
         print(f"-> Dataset already has {current_word_count} words, skipping augmentation")
         augmented_jsonl_str = jsonl_str
+        
+    return {"status": "stopped", "message": "Temp exit for debugging"}  # TEMPORARY EXIT TO AVOID FURTHER PROCESSING
 
     with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".jsonl", encoding="utf-8") as temp_file:
         temp_file_path = temp_file.name
