@@ -179,9 +179,9 @@ async def generate_voice(request: Request, background_tasks: BackgroundTasks):
     if current_word_count < TARGET_WORDS:
         print("🌀 Running dataset augmentation...")
         augmented_jsonl_str, total_words_generated = augment_dataset(jsonl_str, target_words=TARGET_WORDS)
-        print(f"🌀 Dataset successfully augmented.\n----> Words added: {total_words_generated - current_word_count}\n----> New total: {total_words_generated} words")
+        print(f"🌀 Dataset successfully augmented.\nNew total: {total_words_generated} words")
     else:
-        print(f"-> Dataset already has {current_word_count} words, skipping augmentation")
+        print(f"🌀 Dataset already has {current_word_count} words, skipping augmentation")
         augmented_jsonl_str = jsonl_str
 
     with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".jsonl", encoding="utf-8") as temp_file:
