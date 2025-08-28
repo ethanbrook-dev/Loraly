@@ -1,232 +1,214 @@
 import json
 import random
 import re
-import time
-import os
 from collections import Counter, defaultdict
 
 from .slang_terms import get_all_slang_terms
 
+# ---------- TUNABLES ----------
+USER_REPLACE_PROB = 0.97
+ASSISTANT_REPLACE_PROB = 0.03
+PHASE_STYLE_PROB = 0.35
+PHASE_STRUCT_PROB = 0.12
+MIN_WORDS = 2
+# -------------------------------
 
 def augment_dataset(jsonl_str: str, target_words: int = 200_000) -> str:
-    """
-    Augments a JSONL chat dataset while preserving style and semantic sense.
-    """
+    """LoRA-agnostic conversational dataset augmentation."""
 
-    # ----------------------
-    # Load original dataset
-    # ----------------------
-    conversations = [json.loads(line) for line in jsonl_str.strip().split("\n") if line.strip()]
+    with open("original_input.jsonl", "w", encoding="utf-8") as f:
+        f.write(jsonl_str)
 
+    # ---------- helpers ----------
     def count_words(text):
-        return len(text.split())
+        return len([w for w in text.split() if w.strip()])
 
-    original_word_count = sum(
-        count_words(msg["content"]) for conv in conversations for msg in conv["messages"]
+    pronoun_re = re.compile(r"\b(I|you|we|they|he|she|it|me|us|him|her)\b", re.I)
+    verb_re = re.compile(
+        r"\b(am|is|are|was|were|have|has|had|do|does|did|go|going|went|will|can|could|should|need|want|love|like|hate|see|come|leave|arrive|text|call|meet|sleep|eat|drink|work|study|watch|play)\b",
+        re.I
     )
 
-    # ----------------------
-    # Build style profiles
-    # ----------------------
-    style_profiles = defaultdict(lambda: {
-        "variants": defaultdict(int),
-        "emoji_freq": Counter(),
-        "punctuation_freq": Counter(),
-        "message_lengths": [],
-        "greetings": set(),
-        "interjections": set(),
-    })
+    def is_grammatical(text: str, reference_text: str = None) -> bool:
+        """Return True if text is grammatical or matches original style."""
+        text = (text or "").strip()
+        if not text or count_words(text) < MIN_WORDS:
+            return False
 
-    slang_candidates = set(get_all_slang_terms(lowercase=True))
+        # Style-aware: if reference exists and was slangy/fragmented, allow similar
+        if reference_text:
+            ref_words = reference_text.split()
+            if count_words(reference_text) <= 4 or any(re.search(r"[^\w\s]", w) for w in ref_words):
+                return True
+
+        # Standard grammatical heuristics
+        if verb_re.search(text) or pronoun_re.search(text):
+            return True
+        if len(text) <= 4 and text.isalpha():
+            return True
+        return False
+
+    def preserve_case_replace(orig: str, repl: str) -> str:
+        if orig.isupper():
+            return repl.upper()
+        if orig[0].isupper():
+            return repl.capitalize()
+        return repl
+
+    def drop_vowels(word: str) -> str:
+        if len(word) <= 3:
+            return word
+        core = word[1:-1]
+        core = re.sub(r"[aeiouAEIOU]", "", core)
+        return word[0] + core + word[-1]
+
+    TYPO_MAP = {"gonna": "gon", "you": "u", "are": "r", "with": "w/", "tonight": "2nite", "okay": "ok"}
+    FILLERS = get_all_slang_terms(lowercase=True)
+    POS_EMOJI = ["😊", "😂", "🔥", "❤️", "😆"]
+    NEG_EMOJI = ["😩", "💀", "🙄"]
+
+    # ---------- Load dataset ----------
+    conversations = []
+    for line in jsonl_str.strip().split("\n"):
+        if not line.strip():
+            continue
+        try:
+            conv = json.loads(line)
+            if "messages" in conv and isinstance(conv["messages"], list):
+                conversations.append(conv)
+        except Exception:
+            continue
+
+    if not conversations:
+        return ""
+
+    # Build dynamic style profiles per role
+    style_profiles = defaultdict(lambda: {"variants": Counter(), "emoji_freq": Counter(), "message_lengths": []})
+    slang_candidates = set(FILLERS or [])
 
     for conv in conversations:
         for msg in conv["messages"]:
-            role = msg["role"]
-            text = msg["content"]
-
-            # Message lengths
-            style_profiles[role]["message_lengths"].append(len(text.split()))
-
-            # Punctuation habits
-            for p in ["!!", "??"]:
-                if p in text:
-                    style_profiles[role]["punctuation_freq"][p] += 1
-
-            # Emojis
+            role = msg.get("role", "user")
+            text = msg.get("content", "") or ""
+            style_profiles[role]["message_lengths"].append(count_words(text))
+            for w in text.lower().split():
+                style_profiles[role]["variants"][w] += 1
             emojis = re.findall(r"[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF]+", text)
             for e in emojis:
                 style_profiles[role]["emoji_freq"][e] += 1
 
-            # Variants
-            for word in text.lower().split():
-                style_profiles[role]["variants"][word] += 1
-                # Track greetings/interjections for safer replacements
-                if word in ["hey", "hi", "yo", "ayy", "omg", "lol", "haha"]:
-                    style_profiles[role]["greetings"].add(word)
-                elif word in ["wow", "wtf", "ugh", "ah", "huh"]:
-                    style_profiles[role]["interjections"].add(word)
+    for r, p in style_profiles.items():
+        filtered = Counter({w: f for w, f in p["variants"].items() if f >= 2 or w in slang_candidates})
+        style_profiles[r]["variants"] = filtered if filtered else p["variants"]
 
-    # Only keep frequent variants for replacement
-    for role, profile in style_profiles.items():
-        profile["variants"] = {
-            w: f for w, f in profile["variants"].items() if f >= 5 or w in slang_candidates
-        }
-
-    # ----------------------
-    # Augmentation functions
-    # ----------------------
-    def synonym_replace(text, role):
-        """Replace words safely with frequent variants of same type."""
+    # ---------- Augmentation primitives ----------
+    def lexical_tweak(text: str, role: str) -> str:
         words = text.split()
+        if not words:
+            return text
+        variants = style_profiles[role]["variants"]
         new_words = []
-        prev_word = None
-
         for w in words:
-            lw = w.lower()
-            if lw in style_profiles[role]["variants"] and random.random() < 0.1:
-                # Choose replacement from same type
-                candidates = []
-                if lw in style_profiles[role]["greetings"]:
-                    candidates = list(style_profiles[role]["greetings"])
-                elif lw in style_profiles[role]["interjections"]:
-                    candidates = list(style_profiles[role]["interjections"])
-                else:
-                    candidates = [v for v in style_profiles[role]["variants"].keys() if v not in style_profiles[role]["greetings"] and v not in style_profiles[role]["interjections"]]
-
-                if candidates:
-                    choice = random.choice(candidates)
-                    # Avoid consecutive duplicate
-                    while choice == prev_word and len(candidates) > 1:
-                        choice = random.choice(candidates)
-                    new_words.append(choice)
-                    prev_word = choice
-                else:
-                    new_words.append(w)
-                    prev_word = w
-            else:
-                new_words.append(w)
-                prev_word = w
-
+            lw = re.sub(r"[^\w']", "", w.lower())
+            out_word = w
+            if lw and lw in variants and random.random() < (0.2 if role == "user" else 0.03):
+                pool = list(variants.keys())
+                weights = [variants[k] for k in pool]
+                pick = random.choices(pool, weights=weights, k=1)[0]
+                out_word = preserve_case_replace(w, pick)
+            elif lw in TYPO_MAP and random.random() < (0.12 if role == "user" else 0.02):
+                out_word = preserve_case_replace(w, TYPO_MAP[lw])
+            new_words.append(out_word)
         return " ".join(new_words)
 
-    def remix_messages(messages):
-        """Split or merge messages safely without breaking context."""
-        new_msgs = []
-        prev_msg = None
-        prev_msg_words = []
-
-        for msg in messages:
-            role, text = msg["role"], msg["content"]
-            words = [w for w in text.split() if w]
-
-            # Split on commas only if sentence is long
-            if "," in text and len(words) > 5 and random.random() < 0.25:
-                parts = [p.strip() for p in text.split(",") if p.strip()]
-                for p in parts:
-                    part_words = p.split()
-                    # Avoid duplicate boundaries
-                    if prev_msg and prev_msg["role"] == role and prev_msg_words and part_words and prev_msg_words[-1].lower() == part_words[0].lower():
-                        part_words = part_words[1:]
-                    if part_words:
-                        new_msgs.append({"role": role, "content": " ".join(part_words)})
-                        prev_msg = new_msgs[-1]
-                        prev_msg_words = part_words
-            # Merge with previous if short messages and same role
-            elif prev_msg and prev_msg["role"] == role and len(words) < 5 and random.random() < 0.15:
-                merged = " ".join(prev_msg_words + words)
-                new_msgs[-1] = {"role": role, "content": merged}
-                prev_msg = new_msgs[-1]
-                prev_msg_words = merged.split()
+    def stylistic_tweak(text: str, role: str) -> str:
+        text = text.strip()
+        if FILLERS and random.random() < (PHASE_STYLE_PROB if role == "user" else PHASE_STYLE_PROB*0.15):
+            filler = random.choice(FILLERS)
+            if random.random() < 0.5:
+                text = f"{filler} {text}"
             else:
-                new_msgs.append(msg)
-                prev_msg = msg
-                prev_msg_words = words
-
-        return new_msgs
-
-    def inject_noise(text, role):
-        """Add small typos, abbreviations, or emojis safely."""
-        if random.random() < 0.05:
-            text = text.replace("gonna", "gon")
-        if random.random() < 0.05 and style_profiles[role]["emoji_freq"]:
-            text += random.choice(list(style_profiles[role]["emoji_freq"].keys()))
+                text = f"{text} {filler}"
+        if random.random() < 0.12 and not re.search(r"[.!?]$", text):
+            text += random.choice([".", "...", "!!", "?!"])
+        if random.random() < (0.08 if role == "user" else 0.02):
+            for k, v in TYPO_MAP.items():
+                text = re.sub(rf"\b{k}\b", v, text, flags=re.I)
+        if random.random() < (0.10 if role == "user" else 0.02):
+            text += " " + random.choice(POS_EMOJI + NEG_EMOJI)
         return text
 
-    # ----------------------
-    # Augmentation loop
-    # ----------------------
-    avg_conv_words = original_word_count / len(conversations)
-    needed_convs = (target_words - original_word_count) / avg_conv_words
-    max_retries = int(needed_convs * 2)
+    def structural_remix(messages: list) -> list:
+        new_msgs = []
+        prev = None
+        for msg in messages:
+            role = msg.get("role", "user")
+            text = (msg.get("content") or "").strip()
+            words = text.split()
+            if "," in text and len(words) > 8 and random.random() < 0.25:
+                parts = [p.strip() for p in text.split(",") if p.strip()]
+                for p in parts:
+                    if len(p.split()) >= MIN_WORDS:
+                        new_msgs.append({"role": role, "content": p})
+            elif prev and prev["role"] == role and len(words) < 5 and random.random() < 0.2:
+                cand = (prev["content"].rstrip(".!?") + " " + text).strip()
+                if is_grammatical(cand, reference_text=prev["content"]):
+                    prev["content"] = cand
+                else:
+                    new_msgs.append(msg)
+                    prev = msg
+            else:
+                new_msgs.append(msg)
+                prev = msg
+        if len(new_msgs) > 3 and random.random() < 0.06:
+            i = random.randint(1, len(new_msgs) - 2)
+            a, b = new_msgs[i], new_msgs[i+1]
+            if is_grammatical(a["content"], reference_text=a["content"]) and is_grammatical(b["content"], reference_text=b["content"]):
+                new_msgs[i], new_msgs[i+1] = b, a
+        return new_msgs
 
-    augmented = conversations[:]
-    total_words = original_word_count
-    retries = 0
-
-    while total_words < target_words and retries < max_retries:
-        base_conv = random.choice(conversations)
+    def conversation_level_variant(conv: dict, intensity: float = 0.8) -> dict:
         new_conv = {"messages": []}
+        for msg in conv["messages"]:
+            role = msg.get("role", "user")
+            text = msg.get("content", "")
+            if role == "user":
+                t = lexical_tweak(text, role)
+                if random.random() < intensity:
+                    t = stylistic_tweak(t, role)
+                if random.random() < 0.08:
+                    t = " ".join(drop_vowels(w) if random.random() < 0.12 else w for w in t.split())
+                if not is_grammatical(t, reference_text=text):
+                    t = text
+                new_conv["messages"].append({"role": role, "content": t})
+            else:
+                if random.random() < 0.06:
+                    t = lexical_tweak(text, role)
+                    t = stylistic_tweak(t, role) if random.random() < 0.25 else t
+                    if not is_grammatical(t, reference_text=text):
+                        t = text
+                    new_conv["messages"].append({"role": role, "content": t})
+                else:
+                    new_conv["messages"].append({"role": role, "content": text})
+        return new_conv
 
-        for msg in base_conv["messages"]:
-            role, text = msg["role"], msg["content"]
+    # ---------- Main augmentation loop ----------
+    original_word_count = sum(count_words(msg.get("content", "")) for conv in conversations for msg in conv["messages"])
+    target = target_words
+    if original_word_count >= target:
+        return "\n".join(json.dumps(c, ensure_ascii=False) for c in conversations)
 
-            # Step 1: synonym replacement
-            aug_text = synonym_replace(text, role)
-            # Step 2: optional noise injection
-            aug_text = inject_noise(aug_text, role)
-            new_conv["messages"].append({"role": role, "content": aug_text})
+    augmented = list(conversations)
+    total_words = original_word_count
 
-        # Step 3: remix message blocks
-        new_conv["messages"] = remix_messages(new_conv["messages"])
-
-        augmented.append(new_conv)
-        total_words += sum(count_words(m["content"]) for m in new_conv["messages"])
-        retries += 1
-
-    # ----------------------
-    # Export JSONL
-    # ----------------------
+    while total_words < target:
+        base_conv = random.choice(conversations)
+        conv_variant = conversation_level_variant(base_conv)
+        if all(is_grammatical(m.get("content", ""), reference_text=orig.get("content", "")) 
+               for m, orig in zip(conv_variant["messages"], base_conv["messages"])):
+            augmented.append(conv_variant)
+            total_words += sum(count_words(m.get("content", "")) for m in conv_variant["messages"])
 
     out_lines = [json.dumps(conv, ensure_ascii=False) for conv in augmented]
-
-    # Final stats
-    status_emoji = "✅" if total_words >= target_words else "❌"
-    print(f"\nFinal word count: {total_words} / {target_words} {status_emoji}")
-
+    print(f"\nFinal word count: {total_words} / {target} {'✅' if total_words >= target else '❌'}")
     return "\n".join(out_lines)
-
-def main():
-    # Example usage
-    sample_jsonl = """
-    {"messages": [{"role": "user", "content": "hey yo how are you?"}, {"role": "assistant", "content": "I'm good, how about you?"}]}
-    {"messages": [{"role": "user", "content": "ayy whassup"}, {"role": "assistant", "content": "Not much, just chilling"}]}
-    {"messages": [{"role": "user", "content": "hey what's up with your day?"}, {"role": "assistant", "content": "Pretty good, been busy with work"}]}
-    {"messages": [{"role": "user", "content": "yo yo let's grab lunch soon"}, {"role": "assistant", "content": "Sure! When are you free?"}]}
-    {"messages": [{"role": "user", "content": "gonna head to the gym later"}, {"role": "assistant", "content": "Nice, get those gains 💪"}]}
-    {"messages": [{"role": "user", "content": "did you watch the game last night?"}, {"role": "assistant", "content": "Yeah! That last goal was insane 😲"}]}
-    {"messages": [{"role": "user", "content": "haha that's wild"}, {"role": "assistant", "content": "Totally, can't believe it happened"}]}
-    {"messages": [{"role": "user", "content": "you free this weekend?"}, {"role": "assistant", "content": "Yes, let's plan something fun"}]}
-    {"messages": [{"role": "user", "content": "omg I can't wait 😆"}, {"role": "assistant", "content": "Me neither, gonna be great"}]}
-    """
-    
-    print("Running dataset augmentation...")
-    augmented_jsonl_str = augment_dataset(sample_jsonl, target_words=2000)
-
-    temp_file = "temp_augmented.jsonl"
-    with open(temp_file, "w", encoding="utf-8") as f:
-        f.write(augmented_jsonl_str)
-    
-    print(f"\n✅ Augmented dataset written to {temp_file}")
-    print("Waiting 10 seconds before asking to delete...")
-    time.sleep(10)
-
-    choice = input("Do you want to delete the temp file? (y/n): ").strip().lower()
-    if choice == "y":
-        os.remove(temp_file)
-        print("🗑️ Temp file deleted.")
-    else:
-        print(f"📂 Temp file kept at {temp_file}")
-
-
-if __name__ == "__main__":
-    main()
