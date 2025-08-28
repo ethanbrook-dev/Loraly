@@ -14,6 +14,7 @@ const eslintConfig = [
     extends: ["next/core-web-vitals", "next/typescript"],
     rules: {
       "@typescript-eslint/no-explicit-any": "off", // disable "unexpected any"
+      "@next/next/no-img-element": "off",          // disable <img> warning
     },
   }),
 ];
