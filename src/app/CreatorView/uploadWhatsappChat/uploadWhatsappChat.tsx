@@ -120,7 +120,7 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
 
     for (const msg of sortedMessages) {
       const speaker = msg.name === selectedParticipant ? 'Assistant' : 'User';
-      let messageText = msg.message.trim();
+      const messageText = msg.message.trim();
 
       // Check if we should start a new block (based on time gap)
       let startNewBlock = false;
