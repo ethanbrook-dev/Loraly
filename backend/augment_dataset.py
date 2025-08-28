@@ -71,7 +71,7 @@ def augment_dataset(jsonl_str: str, target_words: int = 200_000) -> tuple[str, i
             continue
 
     if not conversations:
-        return ""
+        return "", 0
 
     # Build style profiles
     style_profiles = defaultdict(lambda: {"variants": Counter(), "emoji_freq": Counter(), "message_lengths": []})
@@ -118,9 +118,13 @@ def augment_dataset(jsonl_str: str, target_words: int = 200_000) -> tuple[str, i
             new_words.append(out_word)
         return " ".join(new_words)
 
-    def stylistic_tweak(text: str, role: str) -> str:
+    def contains_slang(text: str) -> bool:
+        lw = text.lower()
+        return any(s in lw for s in FILLERS)
+
+    def stylistic_tweak(text: str, role: str, original_text: str) -> str:
         text = text.strip()
-        if FILLERS and random.random() < (PHASE_STYLE_PROB if role == "user" else PHASE_STYLE_PROB*0.15):
+        if FILLERS and contains_slang(original_text) and random.random() < (PHASE_STYLE_PROB if role == "user" else PHASE_STYLE_PROB*0.15):
             filler = random.choice(FILLERS)
             if random.random() < 0.5:
                 text = f"{filler} {text}"
@@ -175,7 +179,7 @@ def augment_dataset(jsonl_str: str, target_words: int = 200_000) -> tuple[str, i
             if role == "user":
                 t = lexical_tweak(text, role)
                 if random.random() < intensity:
-                    t = stylistic_tweak(t, role)
+                    t = stylistic_tweak(t, role, original_text=text)
                 if random.random() < 0.08:
                     t = " ".join(drop_vowels(w) if random.random() < 0.12 else w for w in t.split())
                 if not is_grammatical(t, reference_text=text):
@@ -186,7 +190,7 @@ def augment_dataset(jsonl_str: str, target_words: int = 200_000) -> tuple[str, i
                 for _ in range(5):
                     if random.random() < ASSISTANT_REPLACE_PROB:
                         t = lexical_tweak(text, role)
-                        t = stylistic_tweak(t, role) if random.random() < 0.25 else t
+                        t = stylistic_tweak(t, role, original_text=text) if random.random() < 0.25 else t
                         t = add_variation_short_text(t, role)
                     else:
                         t = add_variation_short_text(text, role)
