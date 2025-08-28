@@ -7,7 +7,7 @@ from .slang_terms import get_all_slang_terms
 
 # ---------- TUNABLES ----------
 USER_REPLACE_PROB = 0.97
-ASSISTANT_REPLACE_PROB = 0.03
+ASSISTANT_REPLACE_PROB = 0.25
 PHASE_STYLE_PROB = 0.35
 PHASE_STRUCT_PROB = 0.12
 MIN_WORDS = 2
@@ -16,7 +16,6 @@ MIN_WORDS = 2
 def augment_dataset(jsonl_str: str, target_words: int = 200_000) -> tuple[str, int]:
     """LoRA-agnostic conversational dataset augmentation."""
 
-    # ---------- helpers ----------
     def count_words(text):
         return len([w for w in text.split() if w.strip()])
 
@@ -27,18 +26,13 @@ def augment_dataset(jsonl_str: str, target_words: int = 200_000) -> tuple[str, i
     )
 
     def is_grammatical(text: str, reference_text: str = None) -> bool:
-        """Return True if text is grammatical or matches original style."""
         text = (text or "").strip()
         if not text or count_words(text) < MIN_WORDS:
             return False
-
-        # Style-aware: if reference exists and was slangy/fragmented, allow similar
         if reference_text:
             ref_words = reference_text.split()
             if count_words(reference_text) <= 4 or any(re.search(r"[^\w\s]", w) for w in ref_words):
                 return True
-
-        # Standard grammatical heuristics
         if verb_re.search(text) or pronoun_re.search(text):
             return True
         if len(text) <= 4 and text.isalpha():
@@ -79,10 +73,9 @@ def augment_dataset(jsonl_str: str, target_words: int = 200_000) -> tuple[str, i
     if not conversations:
         return ""
 
-    # Build dynamic style profiles per role
+    # Build style profiles
     style_profiles = defaultdict(lambda: {"variants": Counter(), "emoji_freq": Counter(), "message_lengths": []})
     slang_candidates = set(FILLERS or [])
-
     for conv in conversations:
         for msg in conv["messages"]:
             role = msg.get("role", "user")
@@ -98,6 +91,13 @@ def augment_dataset(jsonl_str: str, target_words: int = 200_000) -> tuple[str, i
         filtered = Counter({w: f for w, f in p["variants"].items() if f >= 2 or w in slang_candidates})
         style_profiles[r]["variants"] = filtered if filtered else p["variants"]
 
+    # ---------- Helper for short message variation ----------
+    def add_variation_short_text(text: str, role: str) -> str:
+        if count_words(text) <= 3 and random.random() < 0.5:
+            fillers = ["🙂", "😅", "got it", "sure", "ok"]
+            text += " " + random.choice(fillers)
+        return text
+
     # ---------- Augmentation primitives ----------
     def lexical_tweak(text: str, role: str) -> str:
         words = text.split()
@@ -108,7 +108,7 @@ def augment_dataset(jsonl_str: str, target_words: int = 200_000) -> tuple[str, i
         for w in words:
             lw = re.sub(r"[^\w']", "", w.lower())
             out_word = w
-            if lw and lw in variants and random.random() < (0.2 if role == "user" else 0.03):
+            if lw and lw in variants and random.random() < (0.2 if role == "user" else ASSISTANT_REPLACE_PROB):
                 pool = list(variants.keys())
                 weights = [variants[k] for k in pool]
                 pick = random.choices(pool, weights=weights, k=1)[0]
@@ -164,6 +164,9 @@ def augment_dataset(jsonl_str: str, target_words: int = 200_000) -> tuple[str, i
                 new_msgs[i], new_msgs[i+1] = b, a
         return new_msgs
 
+    # Track all assistant messages globally to avoid exact duplicates
+    global_assistant_texts = set()
+
     def conversation_level_variant(conv: dict, intensity: float = 0.8) -> dict:
         new_conv = {"messages": []}
         for msg in conv["messages"]:
@@ -178,15 +181,19 @@ def augment_dataset(jsonl_str: str, target_words: int = 200_000) -> tuple[str, i
                 if not is_grammatical(t, reference_text=text):
                     t = text
                 new_conv["messages"].append({"role": role, "content": t})
-            else:
-                if random.random() < 0.06:
-                    t = lexical_tweak(text, role)
-                    t = stylistic_tweak(t, role) if random.random() < 0.25 else t
-                    if not is_grammatical(t, reference_text=text):
-                        t = text
-                    new_conv["messages"].append({"role": role, "content": t})
-                else:
-                    new_conv["messages"].append({"role": role, "content": text})
+            else:  # assistant
+                # Keep retrying until unique
+                for _ in range(5):
+                    if random.random() < ASSISTANT_REPLACE_PROB:
+                        t = lexical_tweak(text, role)
+                        t = stylistic_tweak(t, role) if random.random() < 0.25 else t
+                        t = add_variation_short_text(t, role)
+                    else:
+                        t = add_variation_short_text(text, role)
+                    if t not in global_assistant_texts:
+                        global_assistant_texts.add(t)
+                        break
+                new_conv["messages"].append({"role": role, "content": t})
         return new_conv
 
     # ---------- Main augmentation loop ----------
