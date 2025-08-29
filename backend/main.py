@@ -1,25 +1,27 @@
 # main.py - the entrypoint for the backend
 
 # Standard library imports
-import os, time
+import asyncio
 import json
-import tempfile
+import os
 import re
-import unicodedata
+import tempfile
 import traceback
+import unicodedata
 from contextlib import asynccontextmanager
+from sklearn.model_selection import train_test_split
 
-# Third-party imports (api, modal, etc)
-from fastapi import FastAPI, Request, BackgroundTasks
+# Third-party imports
+from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import modal, asyncio
+import modal
 from supabase import create_client
 
 # Local imports
 from backend.augment_dataset import augment_dataset
 from backend.dataset_analyzer import analyze_dataset
-from backend.train_lora import train_lora, finalize_training
+from backend.train_lora import finalize_training, train_lora
 
 # Load supabase
 supabase = create_client(
@@ -119,7 +121,6 @@ async def lifespan(app: FastAPI):
     global chat_worker
     print("🔌 Spinning up PERSISTENT Modal chat worker...")
     chat_worker = Phi2ChatCls(
-        base_model_repo="microsoft/phi-2",
         hf_token=HF_TOKEN
     )
     print(f"✔️  Persistent Modal chat worker spawned: {chat_worker}")
@@ -159,50 +160,62 @@ async def chat(request: Request) -> JSONResponse:
 
 # ------------------------------------------------- GENERATING VOICE ------------------------------------------------- #
 @app.post("/generate-voice")
+@app.post("/generate-voice")
 async def generate_voice(request: Request, background_tasks: BackgroundTasks):
     print("🧠 In the backend ... training voice ...")
     data = await request.json()
 
     lora_id = data.get("loraId")
-    text = data.get("rawText")
+    raw_text = data.get("rawText")
     participants = data.get("participants")
 
-    # Convert to JSONL string
-    jsonl_str = text_to_axolotl_json(text)
+    if not lora_id or not raw_text:
+        return JSONResponse({"error": "Missing loraId or rawText"}, status_code=400)
 
-    # Count current words
-    current_word_count = sum(len(json.loads(line)["messages"][0]["content"].split()) 
-                            for line in jsonl_str.splitlines())
+    # Convert to Axolotl JSONL
+    jsonl_str = text_to_axolotl_json(raw_text)
 
-    # Augment dataset only if under target
-    TARGET_WORDS = int(os.getenv("AUGMENT_TARGET_WORDS", 200_000))  # Dynamic for testing. TODO: After testing, set to default xk
-    if current_word_count < TARGET_WORDS:
-        print("🌀 Running dataset augmentation...")
-        augmented_jsonl_str, total_words_generated = augment_dataset(jsonl_str, target_words=TARGET_WORDS)
-        print(f"🌀 Dataset successfully augmented.\nNew total: {total_words_generated} words")
-    else:
-        print(f"🌀 Dataset already has {current_word_count} words, skipping augmentation")
-        augmented_jsonl_str = jsonl_str
+    # ---------- Split train / validation ----------
+    train_jsonl, val_jsonl = split_train_val(jsonl_str, val_frac=0.02)
 
-    with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".jsonl", encoding="utf-8") as temp_file:
-        temp_file_path = temp_file.name
-        temp_file.write(augmented_jsonl_str)
-        temp_file.flush()
+    # ---------- Augment training dataset only ----------
+    train_word_count = sum(len(json.loads(line)["messages"][0]["content"].split()) 
+                           for line in train_jsonl.splitlines())
+    TARGET_WORDS = int(os.getenv("AUGMENT_TARGET_WORDS", 200_000))
     
-    # Analyze dataset
+    if train_word_count < TARGET_WORDS:
+        print(f"🌀 Augmenting training dataset ({train_word_count} words → target {TARGET_WORDS})...")
+        train_jsonl, total_words_generated = augment_dataset(train_jsonl, target_words=TARGET_WORDS)
+        print(f"✅ Dataset augmented. New total: {total_words_generated} words")
+    else:
+        print(f"🌀 Training dataset already has {train_word_count} words, skipping augmentation")
+
+    # ---------- Write temp files ----------
+    with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".jsonl", encoding="utf-8") as f_train, \
+         tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".jsonl", encoding="utf-8") as f_val:
+        f_train_path = f_train.name
+        f_val_path = f_val.name
+        f_train.write(train_jsonl)
+        f_val.write(val_jsonl)
+        f_train.flush()
+        f_val.flush()
+
+    # ---------- Analyze dataset ----------
     try:
-        analysis = analyze_dataset(temp_file_path, participants)
-        save_dataset_analysis(lora_id, analysis)  # save into Supabase
+        analysis = analyze_dataset(f_train_path, participants)
+        save_dataset_analysis(lora_id, analysis)
     except Exception as e:
         print(f"⚠️ Failed to analyze dataset: {e}")
         analysis = None
 
-    background_tasks.add_task(train_lora, lora_id, temp_file_path)
-    background_tasks.add_task(delete_file_after_delay, temp_file_path, 10)
+    # ---------- Launch training in background ----------
+    background_tasks.add_task(train_lora, lora_id, f_train_path, f_val_path)
+    background_tasks.add_task(delete_file_after_delay, f_train_path, 10)
+    background_tasks.add_task(delete_file_after_delay, f_val_path, 10)
 
     return {
         "status": "processing",
-        "message": "Dataset submitted. LoRA fine-tuning will run in the background.",
+        "message": "Dataset submitted. LoRA fine-tuning will run in the background with validation."
     }
 
 async def delete_file_after_delay(file_path: str, delay_seconds: int):
@@ -213,6 +226,12 @@ async def delete_file_after_delay(file_path: str, delay_seconds: int):
             print(f"🧹 Temp file deleted: {file_path}")
     except Exception as e:
         print(f"⚠️ Error deleting temp file: {e}")
+
+def split_train_val(jsonl_str: str, val_frac: float = 0.02) -> tuple[str, str]:
+    """Splits JSONL string into training and validation JSONL strings."""
+    lines = [line for line in jsonl_str.strip().splitlines() if line.strip()]
+    train_lines, val_lines = train_test_split(lines, test_size=val_frac, random_state=42)
+    return "\n".join(train_lines), "\n".join(val_lines)
 
 def clean_unicode(text: str) -> str:
     replacements = {
