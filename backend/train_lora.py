@@ -38,27 +38,40 @@ if not HF_TOKEN:
 
 api = HfApi(token=HF_TOKEN)
 
-def train_lora(lora_id: str, dataset_file_path: str):
+def train_lora(lora_id: str, train_file_path: str, val_file_path: str):
+    """
+    Launch LoRA training pipeline using RunPod with optional validation dataset.
+    """
+
     dataset_repo_id = get_hf_dataset_repo_id(lora_id)
     update_lora_status(lora_id, LoraStatus.TRAINING)
 
     try:
-        upload_dataset_to_hf(dataset_file_path, dataset_repo_id)
-        pod_id = start_training_pipeline(lora_id, dataset_repo_id)
-        
+        # Upload training dataset to Hugging Face
+        upload_dataset_to_hf(train_file_path, dataset_repo_id)
+
+        # Upload validation dataset
+        val_repo_id = f"{dataset_repo_id}-val"
+        upload_dataset_to_hf(val_file_path, val_repo_id)
+
+        # Start pod with dataset repo
+        pod_id = start_training_pipeline(lora_id, dataset_repo_id, val_repo_id)
+
         if not pod_id:
             print("❌ Failed to start training pipeline.")
             update_lora_status(lora_id, LoraStatus.TRAINING_FAILED)
-            cleanup(dataset_file_path)
+            cleanup(train_file_path)
+            cleanup(val_file_path)
             return
-        
+
         _ = supabase.table(TABLE_LORAS).update({"pod_id": pod_id}).eq(COL_LORA_ID, lora_id).execute()
         print(f"✅ Pod ID {pod_id} saved to database for LoRA {lora_id}.")
-        
+
     except Exception as e:
         print(f"❌ Training pipeline error: {e}")
         update_lora_status(lora_id, LoraStatus.TRAINING_FAILED)
-        cleanup(dataset_file_path)
+        cleanup(train_file_path)
+        cleanup(val_file_path)
 
 def finalize_training(lora_id: str, pod_id: str, cuda_not_available: bool = False):
     """ Finalize the training process based on the status received from the pod """
@@ -115,41 +128,20 @@ def cleanup(temp_path: str):
         print(f"🧹 Deleted local dataset: {temp_path}")
     except Exception as e:
         print(f"⚠️ Failed to delete local file: {e}")
-        
-def get_config_template(model_id: str) -> str:
-    """Return the correct config template based on the model ID"""
-    if "llama-3.1-8b-instruct" in model_id.lower():
-        return "lora_training_config_llama.yaml"
-    elif "phi" in model_id.lower():
-        return "lora_training_config_phi2.yaml"
-    elif "mistral" in model_id.lower():
-        return "lora_training_config_mistral.yaml"
-    else:
-        # Default to Mistral config for safety
-        return "lora_training_config_mistral.yaml"
     
-def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> str | None:
-    
-    model_id = os.getenv("HF_MODEL_ID")
-    config_template = get_config_template(model_id)
-    
-    # Build the full path to the config file
-    configs_dir = "lora_training_configs"
-    config_template_path = os.path.join(configs_dir, config_template)
-    
-    print(f"📋 Using config template: {config_template_path} for model: {model_id}")
-    
-    # Check if the config file actually exists
+def start_training_pipeline(lora_id: str, dataset_repo_id: str, val_repo_id: str) -> str | None:
+    config_template_path = "lora_training_config_llama8B.yaml"
+
     if not os.path.exists(config_template_path):
-        print(f"❌ ERROR: Config template file not found at: {config_template_path}")
-        print("Please make sure the file exists in the lora_training_configs folder.")
+        print(f"❌ ERROR: No config template file at {config_template_path}")
         return None
-    
-    print("🔄 Starting training pipeline...")
+
+    print(f"📋 Using config template: {config_template_path}")
     model_output_path = f"output/{lora_id}"
-    config_content = generate_config(config_template_path, dataset_repo_id, model_output_path)
-    
-    pod_id = create_pod(lora_id, dataset_repo_id, model_output_path, config_content)
+
+    # Generate YAML config dynamically with validation dataset if provided
+    config_content = generate_config(config_template_path, dataset_repo_id, model_output_path, val_repo_id)
+    pod_id = create_pod(lora_id, model_output_path, config_content)
     if not pod_id:
         return None
 
@@ -159,8 +151,7 @@ def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> str | None:
     print(f"✅ Pod {pod_id} is ready and training has started.")
     return pod_id
 
-
-def create_pod(lora_id: str, dataset_repo_id: str, model_output_path: str, config_content: str) -> str:
+def create_pod(lora_id: str, model_output_path: str, config_content: str) -> str:
     headers = runpod_headers()
     pod_name = f"{lora_id}-trainer"
 
@@ -195,7 +186,6 @@ def create_pod(lora_id: str, dataset_repo_id: str, model_output_path: str, confi
                     {"key": "HF_TOKEN", "value": os.getenv("HF_TOKEN")},
                     {"key": "HF_USERNAME", "value": os.getenv("HF_USERNAME")},
                     {"key": "BASE_MODEL", "value": os.getenv("HF_MODEL_ID")},
-                    {"key": "DATASET_REPO", "value": dataset_repo_id},
                     {"key": "LORA_ID", "value": lora_id},
                     {"key": "CONFIG_CONTENT", "value": config_content},
                     {"key": "MODEL_OUTPUT_DIR", "value": model_output_path},
@@ -267,18 +257,20 @@ def wait_for_pod_ready(lora_id: str, interval=100, retries=30) -> bool:
     print("❌ Runtime not ready in time.")
     return False
 
-def generate_config(template_path: str, dataset_repo_id: str, model_output_path: str) -> str:
+def generate_config(template_path: str, dataset_repo_id: str, model_output_path: str, val_repo_id: str) -> str:
     with open(template_path, "r") as f:
         content = f.read()
 
+    # Replace placeholders
     replacements = {
         "--BASE_MODEL--": os.getenv("HF_MODEL_ID"),
         "--DATASET_REPO_ID--": dataset_repo_id,
-        "--OUTPUT_DIR--": model_output_path
+        "--OUTPUT_DIR--": model_output_path,
+        "--VAL_DATASET_PATH--": val_repo_id
     }
 
     for placeholder, value in replacements.items():
-        content = content.replace(placeholder, value)
+        content = content.replace(placeholder, str(value))
 
     return content
 
