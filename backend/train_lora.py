@@ -118,7 +118,9 @@ def cleanup(temp_path: str):
         
 def get_config_template(model_id: str) -> str:
     """Return the correct config template based on the model ID"""
-    if "phi" in model_id.lower():
+    if "llama-3.1-8b-instruct" in model_id.lower():
+        return "lora_training_config_llama.yaml"
+    elif "phi" in model_id.lower():
         return "lora_training_config_phi2.yaml"
     elif "mistral" in model_id.lower():
         return "lora_training_config_mistral.yaml"
@@ -140,7 +142,7 @@ def start_training_pipeline(lora_id: str, dataset_repo_id: str) -> str | None:
     # Check if the config file actually exists
     if not os.path.exists(config_template_path):
         print(f"❌ ERROR: Config template file not found at: {config_template_path}")
-        print("   Please make sure the file exists in the lora_training_configs folder.")
+        print("Please make sure the file exists in the lora_training_configs folder.")
         return None
     
     print("🔄 Starting training pipeline...")
