@@ -1,4 +1,4 @@
-# chat_with_lora.py
+# chat_with_lora.py - TODO: Rewrite for llama 3.1 8B instruct
 
 import modal
 from transformers import AutoTokenizer, AutoModelForCausalLM, StoppingCriteria, StoppingCriteriaList
@@ -31,7 +31,6 @@ image = (
 class Phi2Chat:
 
     # Define class parameters
-    base_model_repo: str = modal.parameter()
     hf_token: str = modal.parameter()
 
     @modal.enter()
@@ -58,7 +57,7 @@ class Phi2Chat:
         print("[LIFECYCLE] Manual shutdown triggered")
         return "[INFO] Chat worker shut down manually."
     
-    def _ensure_base_model_loaded(self, model_repo: str, hf_token: str):
+    def _ensure_base_model_loaded(self, hf_token: str):
         """
         Internal method to load the base model and tokenizer.
         Only runs the expensive loading logic once per container lifetime.
@@ -74,9 +73,9 @@ class Phi2Chat:
         print(f"{GREEN}[SUCCESS] Logged in successfully{RESET}")
 
         # Load tokenizer
-        print(f"{YELLOW}[INFO] Loading tokenizer from repo {model_repo}...{RESET}")
+        print(f"{YELLOW}[INFO] Loading tokenizer from repo 'microsoft/phi-2'...{RESET}")
         self.tokenizer = AutoTokenizer.from_pretrained(
-            model_repo,
+            "microsoft/phi-2",
             use_fast=True,
             token=hf_token,
             cache_dir="/cache",
@@ -98,9 +97,9 @@ class Phi2Chat:
             print(f"{GREEN}[INFO] All special tokens already present. No changes made.{RESET}")
 
         # Load base model WITHOUT resizing embeddings yet
-        print(f"{YELLOW}[INFO] Loading base model: {model_repo}...{RESET}")
+        print(f"{YELLOW}[INFO] Loading base model from repo 'microsoft/phi-2'...{RESET}")
         self.base_model = AutoModelForCausalLM.from_pretrained(
-            model_repo,
+            "microsoft/phi-2",
             torch_dtype=torch.float16,
             device_map="auto",
             token=hf_token,
