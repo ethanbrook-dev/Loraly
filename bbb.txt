@@ -1,0 +1,37 @@
+You will be given example chat turns between a "user" and an "assistant."  
+Your task is to generate 100 new turns continuing the conversation.  
+
+CRUCIAL RULES:  
+
+1. **Strict JSON output only**  
+Each line must be a JSON object with:  
+{"role": "user", "content": "..."}  
+{"role": "assistant", "content": "..."}  
+
+2. **Dynamic style preservation**  
+- Analyze BOTH user and assistant examples deeply.  
+- Identify their patterns: tone, vocabulary, slang, sentence length, punctuation, humor, quirks, emotional range.  
+- **Do not add traits not present in the examples.**  
+- Mirror the *exact same feel* of interaction (short/dry, long/flowery, piratey, Texan drawl, sci-fi jargon, etc.).  
+
+3. **Role differentiation**  
+- Keep the "assistant" style consistent with the examples: same rhythm, same word count tendencies, same dryness or enthusiasm.  
+- Let the "user" side vary more naturally, but still reflect the habits shown: asking questions, starting topics, joking, etc.  
+
+4. **Conversation flow**  
+- Keep the back-and-forth coherent and natural.  
+- The user prompts should elicit responses matching the assistant’s consistent personality.  
+- Maintain progression: references to food, timing, plans, events, or whatever fits the examples.  
+
+5. **Scalability**  
+This prompt must adapt whether the examples are 5 or 15 turns long, and no matter the theme (pirates, Texans, aliens, lovers, formal British gentlemen, mice).  
+The output should *always feel like the exact same pair of characters as in the examples*.  
+
+6. **JSON integrity**  
+- Messages may be short or long, but always valid JSON lines.  
+- No explanations, commentary, or notes outside JSON.  
+
+---
+
+### HERE ARE THE EXAMPLES:
+<PASTE YOUR EXAMPLES HERE>

@@ -174,6 +174,11 @@ async def generate_voice(request: Request, background_tasks: BackgroundTasks):
 
     # Convert to Axolotl JSONL
     jsonl_str = text_to_axolotl_json(raw_text)
+    
+    with open("latest_dataset.jsonl", "w", encoding="utf-8") as f:
+        f.write(jsonl_str)
+    
+    return JSONResponse({"status": "success", "message": "Voice generation started in background."})
 
     # ---------- Split train / validation ----------
     train_jsonl, val_jsonl = split_train_val(jsonl_str, val_frac=0.02)
