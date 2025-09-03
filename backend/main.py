@@ -97,6 +97,7 @@ chat_worker = None
 Phi3CleanupCls = modal.Cls.from_name("phi3-cleanup-text", "Phi3CleanupWorker")
 cleanup_worker = None
 
+# TODO: phi3-cleanup-text modal worker was delted ... recreate it or remove references
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global chat_worker, cleanup_worker
