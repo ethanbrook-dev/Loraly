@@ -189,7 +189,7 @@ async def generate_voice(request: Request, background_tasks: BackgroundTasks):
 
     # ---- FOR DEV ---- TODO
     config_path = "lora_training_configs/lora_training_config_phi2.yaml" # Default is phi2
-    choice = int(input("\n\n-----\nChoose training config:\n1 (phi2)\n 2 (llama3.1-8B)?\n"))
+    choice = int(input("\n\n-----\nChoose training config:\n1. phi2\n2. Llama3.1-8B\n"))
     if choice == 2:
         config_path = "lora_training_configs/lora_training_config_llama8B.yaml"
         
