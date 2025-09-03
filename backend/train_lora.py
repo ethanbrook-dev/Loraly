@@ -26,6 +26,11 @@ COL_CREATOR_ID = "creator_id"
 COL_PROFILE_ID = "id"
 COL_LORAS_CREATED = "loras_created"
 
+BASE_MODEL_MAP = {
+    "lora_training_configs/lora_training_config_phi2.yaml": "microsoft/phi-2",
+    "lora_training_configs/lora_training_config_llama8B.yaml": "meta-llama/Llama-3.1-8B-Instruct"
+}
+
 # Load environment variables
 env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env.local'))
 load_dotenv(dotenv_path=env_path)
@@ -38,10 +43,15 @@ if not HF_TOKEN:
 
 api = HfApi(token=HF_TOKEN)
 
-def train_lora(lora_id: str, train_file_path: str, val_file_path: str):
+def train_lora(lora_id: str, train_file_path: str, val_file_path: str, yaml_config_path: str):
     """
     Launch LoRA training pipeline using RunPod with optional validation dataset.
     """
+    
+    if BASE_MODEL_MAP.get(yaml_config_path) is None:
+        print(f"❌ No base model mapping found for config {yaml_config_path}")
+        update_lora_status(lora_id, LoraStatus.TRAINING_FAILED)
+        return
 
     dataset_repo_id = get_hf_dataset_repo_id(lora_id)
     update_lora_status(lora_id, LoraStatus.TRAINING)
@@ -55,7 +65,7 @@ def train_lora(lora_id: str, train_file_path: str, val_file_path: str):
         upload_dataset_to_hf(val_file_path, val_repo_id)
 
         # Start pod with dataset repo
-        pod_id = start_training_pipeline(lora_id, dataset_repo_id, val_repo_id)
+        pod_id = start_training_pipeline(lora_id, dataset_repo_id, val_repo_id, yaml_config_path)
 
         if not pod_id:
             print("❌ Failed to start training pipeline.")
@@ -129,19 +139,21 @@ def cleanup(temp_path: str):
     except Exception as e:
         print(f"⚠️ Failed to delete local file: {e}")
     
-def start_training_pipeline(lora_id: str, dataset_repo_id: str, val_repo_id: str) -> str | None:
-    config_template_path = "lora_training_config_llama8B.yaml"
+def start_training_pipeline(lora_id: str, dataset_repo_id: str, val_repo_id: str, yaml_config_path: str) -> str | None:
 
-    if not os.path.exists(config_template_path):
-        print(f"❌ ERROR: No config template file at {config_template_path}")
+    if not os.path.exists(yaml_config_path):
+        print(f"❌ ERROR: No config template file at {yaml_config_path}")
         return None
 
-    print(f"📋 Using config template: {config_template_path}")
+    print(f"📋 Using config template: {yaml_config_path}")
     model_output_path = f"output/{lora_id}"
 
+    # Get base model id from mapping
+    hf_base_model_id = BASE_MODEL_MAP.get(yaml_config_path)
+    
     # Generate YAML config dynamically with validation dataset if provided
-    config_content = generate_config(config_template_path, dataset_repo_id, model_output_path, val_repo_id)
-    pod_id = create_pod(lora_id, model_output_path, config_content)
+    config_content = generate_config(yaml_config_path, hf_base_model_id, dataset_repo_id, model_output_path, val_repo_id)
+    pod_id = create_pod(lora_id, model_output_path, config_content, hf_base_model_id)
     if not pod_id:
         return None
 
@@ -151,7 +163,7 @@ def start_training_pipeline(lora_id: str, dataset_repo_id: str, val_repo_id: str
     print(f"✅ Pod {pod_id} is ready and training has started.")
     return pod_id
 
-def create_pod(lora_id: str, model_output_path: str, config_content: str) -> str:
+def create_pod(lora_id: str, model_output_path: str, config_content: str, hf_base_model_id: str) -> str:
     headers = runpod_headers()
     pod_name = f"{lora_id}-trainer"
 
@@ -185,7 +197,7 @@ def create_pod(lora_id: str, model_output_path: str, config_content: str) -> str
                 "env": [
                     {"key": "HF_TOKEN", "value": os.getenv("HF_TOKEN")},
                     {"key": "HF_USERNAME", "value": os.getenv("HF_USERNAME")},
-                    {"key": "BASE_MODEL", "value": os.getenv("HF_MODEL_ID")},
+                    {"key": "BASE_MODEL", "value": hf_base_model_id},
                     {"key": "LORA_ID", "value": lora_id},
                     {"key": "CONFIG_CONTENT", "value": config_content},
                     {"key": "MODEL_OUTPUT_DIR", "value": model_output_path},
@@ -257,13 +269,13 @@ def wait_for_pod_ready(lora_id: str, interval=100, retries=30) -> bool:
     print("❌ Runtime not ready in time.")
     return False
 
-def generate_config(template_path: str, dataset_repo_id: str, model_output_path: str, val_repo_id: str) -> str:
+def generate_config(template_path: str, hf_base_model_id: str,  dataset_repo_id: str, model_output_path: str, val_repo_id: str) -> str:
     with open(template_path, "r") as f:
         content = f.read()
 
     # Replace placeholders
     replacements = {
-        "--BASE_MODEL--": os.getenv("HF_MODEL_ID"),
+        "--BASE_MODEL--": hf_base_model_id,
         "--DATASET_REPO_ID--": dataset_repo_id,
         "--OUTPUT_DIR--": model_output_path,
         "--VAL_DATASET_PATH--": val_repo_id
@@ -352,4 +364,3 @@ def add_created_lora_to_user(lora_id: str):
 
 def update_lora_status(lora_id: str, new_status: str):
     _ = supabase.table(TABLE_LORAS).update({COL_LORA_STATUS: new_status}).eq(COL_LORA_ID, lora_id).execute()
-

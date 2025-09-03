@@ -40,3 +40,4 @@ next-env.d.ts
 
 # We also ignore backend pycache files
 /backend/__pycache__/
+/backend/augment_dataset_systematically/__pycache__/

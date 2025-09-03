@@ -1,6 +1,7 @@
-# main.py - the entrypoint for the backend
+# main.py - backend entrypoint
 
-# Standard library imports
+# -------------------- Standard library imports --------------------
+import time # TODO: Delete after testing
 import asyncio
 import json
 import os
@@ -11,39 +12,38 @@ import unicodedata
 from contextlib import asynccontextmanager
 from sklearn.model_selection import train_test_split
 
-# Third-party imports
+# -------------------- Third-party imports --------------------
 from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import modal
 from supabase import create_client
 
-# Local imports
-from backend.augment_dataset import augment_dataset
+# -------------------- Local imports --------------------
 from backend.dataset_analyzer import analyze_dataset
 from backend.train_lora import finalize_training, train_lora
 
-# Load supabase
+# -------------------- Supabase client --------------------
 supabase = create_client(
     os.getenv("NEXT_PUBLIC_SUPABASE_URL"),
     os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 )
 
+# -------------------- FastAPI app --------------------
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000", # For local dev
-        "https://loralydemo.netlify.app"], # frontend URL for demo site
+        "http://localhost:3000",  # Local dev
+        "https://loralydemo.netlify.app"  # Demo frontend
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Load environment variables
-env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env.local'))
-
+# -------------------- Environment variables --------------------
 HF_TOKEN = os.getenv("HF_TOKEN")
 HF_USERNAME = os.getenv("HF_USERNAME")
 
@@ -52,84 +52,73 @@ if not HF_TOKEN:
 if not HF_USERNAME:
     raise RuntimeError("❌ HF_USERNAME not found in environment. Please set it in .env.local")
 
-# ------------------------------------ TO CHECK BACKEND ON WEB (FOR DEMO SITE) ------------------------------------ #
+# -------------------- Root endpoint --------------------
 @app.get("/")
 async def root():
     return {"message": "Hello from Loraly! This is the backend."}
 
-# ------------------------------------------------- FINALIZE TRAINING ------------------------------------------------- #
-
+# -------------------- Finalize training endpoint --------------------
 @app.post("/finalize-training")
 async def finalize_training_endpoint(request: Request):
-    """
-    Called when a LoRA training pod has finished (or failed) its workflow.
-
-    Expects JSON:
-    {
-        "lora_id": "<LORA ID>",
-        "status": "<STATUS>",
-        "repo_url": "<HF URL>"   # Only required for 'upload_complete'
-    }
-
-    Possible values for status:
-    - "upload_complete"      : Training finished and model successfully uploaded to Hugging Face.
-    - "cuda_not_available"   : Pod started but no CUDA GPU was available; training did not run.
-    - "training_failed"      : Pod ran but training failed for some other reason.
-    """
     data = await request.json()
-    
     lora_id = data.get("lora_id")
     status = data.get("status")
     repo_url = data.get("repo_url")
 
-    # Validate input
-    if not lora_id: 
-        return JSONResponse({"error": "Missing or invalid lora_id for finalize-training endpoint"}, status_code=400)
-    if status not in ["upload_complete", "cuda_not_available", "training_failed"]: 
-        return JSONResponse({"error": "Invalid status for finalize-training endpoint"}, status_code=400)
+    if not lora_id:
+        return JSONResponse({"error": "Missing lora_id"}, status_code=400)
+    if status not in ["upload_complete", "cuda_not_available", "training_failed"]:
+        return JSONResponse({"error": "Invalid status"}, status_code=400)
     if status == "upload_complete" and not repo_url:
-        return JSONResponse({"error": "Missing repo_url for upload_complete status for finalize-training endpoint"}, status_code=400)
+        return JSONResponse({"error": "Missing repo_url for upload_complete"}, status_code=400)
 
     print(f"🟢 Received finalize notification for LoRA {lora_id}")
 
     try:
-        # Fetch pod_id from Supabase
         resp = supabase.table("loras").select("pod_id").eq("id", lora_id).single().execute()
         pod_id = resp.data.get("pod_id") if resp.data else None
 
         if not pod_id:
             print(f"⚠️ No pod_id found for LoRA {lora_id}")
-            return JSONResponse({"error": "Pod ID not found for this LoRA"}, status_code=404)
-        
-        finalize_training(lora_id, pod_id, cuda_not_available=(status=="cuda_not_available"))
+            return JSONResponse({"error": "Pod ID not found"}, status_code=404)
 
+        finalize_training(lora_id, pod_id, cuda_not_available=(status == "cuda_not_available"))
         return {"status": "success", "message": f"Training finalized for LoRA {lora_id}"}
 
     except Exception as e:
-        print(f"❌ Error finalizing training for LoRA {lora_id}: {e}")
+        print(f"❌ Error finalizing training: {e}")
         traceback.print_exc()
         return JSONResponse({"error": str(e)}, status_code=500)
 
-# ------------------------------------------------- CHATTING API ------------------------------------------------- #
-# 🔁 Correct way to hydrate class from deployed Modal App
+# -------------------- Loading modal objects --------------------
 Phi2ChatCls = modal.Cls.from_name("phi2-lora-chat", "Phi2Chat")
-
 chat_worker = None
+
+Phi3CleanupCls = modal.Cls.from_name("phi3-cleanup-text", "Phi3CleanupWorker")
+cleanup_worker = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global chat_worker
-    print("🔌 Spinning up PERSISTENT Modal chat worker...")
-    chat_worker = Phi2ChatCls(
-        hf_token=HF_TOKEN
-    )
-    print(f"✔️  Persistent Modal chat worker spawned: {chat_worker}")
+    global chat_worker, cleanup_worker
+    print("🔌 Spinning up PERSISTENT Modal workers...")
+    
+    # Chat worker (Phi2)
+    chat_worker = Phi2ChatCls(hf_token=HF_TOKEN)
+    print(f"✔️ Persistent chat worker spawned: {chat_worker}")
+
+    # Cleanup worker (Phi3)
+    cleanup_worker = Phi3CleanupCls()
+    print(f"✔️ Persistent Phi3 cleanup worker spawned: {cleanup_worker}")
+    
     yield
-    print("👋 Terminating persistent chat worker...")
+    print("👋 Terminating persistent workers...")
     chat_worker.shutdown.remote()
-    print("✔️  Chat worker terminated.")
+    cleanup_worker.shutdown.remote()
+    print("✔️ Modal workers terminated.")
 
 app.router.lifespan_context = lifespan
+
+# -------------------- Chat API --------------------
 
 @app.post("/chat")
 async def chat(request: Request) -> JSONResponse:
@@ -142,9 +131,7 @@ async def chat(request: Request) -> JSONResponse:
 
     try:
         print("🚀 Sending prompt to Modal...")
-
-        max_new_tokens, end_prompt, participants = get_dataset_analysis(loraid)
-
+        max_new_tokens, end_prompt, participants = analyze_dataset(loraid)
         response = chat_worker.chat_with_lora.remote(
             lora_repo=f"{HF_USERNAME}/{loraid}-model",
             chat_history=json.dumps(chatHistory),
@@ -153,18 +140,16 @@ async def chat(request: Request) -> JSONResponse:
             participants=participants
         )
         return {"response": response}
+
     except Exception as e:
         print("❌ ERROR GETTING RESPONSE")
         traceback.print_exc()
         return JSONResponse({"error": str(e)}, status_code=500)
 
-# ------------------------------------------------- GENERATING VOICE ------------------------------------------------- #
-@app.post("/generate-voice")
+# -------------------- Generate voice endpoint --------------------
 @app.post("/generate-voice")
 async def generate_voice(request: Request, background_tasks: BackgroundTasks):
-    print("🧠 In the backend ... training voice ...")
     data = await request.json()
-
     lora_id = data.get("loraId")
     raw_text = data.get("rawText")
     participants = data.get("participants")
@@ -172,28 +157,17 @@ async def generate_voice(request: Request, background_tasks: BackgroundTasks):
     if not lora_id or not raw_text:
         return JSONResponse({"error": "Missing loraId or rawText"}, status_code=400)
 
-    # Convert to Axolotl JSONL
+    # Convert frontend JSONL into Axolotl format
     jsonl_str = text_to_axolotl_json(raw_text)
-    
-    with open("latest_dataset.jsonl", "w", encoding="utf-8") as f:
-        f.write(jsonl_str)
-    
-    return JSONResponse({"status": "success", "message": "Voice generation started in background."})
 
-    # ---------- Split train / validation ----------
+    # Split train / validation
     train_jsonl, val_jsonl = split_train_val(jsonl_str, val_frac=0.02)
 
-    # ---------- Augment training dataset only ----------
-    train_word_count = sum(len(json.loads(line)["messages"][0]["content"].split()) 
-                           for line in train_jsonl.splitlines())
-    TARGET_WORDS = int(os.getenv("AUGMENT_TARGET_WORDS", 200_000))
+    # TODO: Augment dataset if too small somehow - maybe train little LoRA, chat with it, and then use that to make 100k words?
     
-    if train_word_count < TARGET_WORDS:
-        print(f"🌀 Augmenting training dataset ({train_word_count} words → target {TARGET_WORDS})...")
-        train_jsonl, total_words_generated = augment_dataset(train_jsonl, target_words=TARGET_WORDS)
-        print(f"✅ Dataset augmented. New total: {total_words_generated} words")
-    else:
-        print(f"🌀 Training dataset already has {train_word_count} words, skipping augmentation")
+    proceed = input("Proceed with training? (y/n): ").lower() == 'y'
+    if not proceed:
+        return {"status": "aborted", "message": "Training aborted by user"}
 
     # ---------- Write temp files ----------
     with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".jsonl", encoding="utf-8") as f_train, \
@@ -213,8 +187,17 @@ async def generate_voice(request: Request, background_tasks: BackgroundTasks):
         print(f"⚠️ Failed to analyze dataset: {e}")
         analysis = None
 
+    # ---- FOR DEV ---- TODO
+    config_path = "lora_training_configs/lora_training_config_phi2.yaml" # Default is phi2
+    choice = int(input("\n\n-----\nChoose training config:\n1 (phi2)\n 2 (llama3.1-8B)?\n"))
+    if choice == 2:
+        config_path = "lora_training_configs/lora_training_config_llama8B.yaml"
+        
+    print(f"> Using config: {config_path}")
+    input("Press Enter to continue...")
+
     # ---------- Launch training in background ----------
-    background_tasks.add_task(train_lora, lora_id, f_train_path, f_val_path)
+    background_tasks.add_task(train_lora, lora_id, f_train_path, f_val_path, config_path)
     background_tasks.add_task(delete_file_after_delay, f_train_path, 10)
     background_tasks.add_task(delete_file_after_delay, f_val_path, 10)
 
@@ -223,6 +206,7 @@ async def generate_voice(request: Request, background_tasks: BackgroundTasks):
         "message": "Dataset submitted. LoRA fine-tuning will run in the background with validation."
     }
 
+# -------------------- Helpers --------------------
 async def delete_file_after_delay(file_path: str, delay_seconds: int):
     await asyncio.sleep(delay_seconds)
     try:
@@ -233,39 +217,19 @@ async def delete_file_after_delay(file_path: str, delay_seconds: int):
         print(f"⚠️ Error deleting temp file: {e}")
 
 def split_train_val(jsonl_str: str, val_frac: float = 0.02) -> tuple[str, str]:
-    """Splits JSONL string into training and validation JSONL strings."""
     lines = [line for line in jsonl_str.strip().splitlines() if line.strip()]
     train_lines, val_lines = train_test_split(lines, test_size=val_frac, random_state=42)
     return "\n".join(train_lines), "\n".join(val_lines)
 
 def clean_unicode(text: str) -> str:
     replacements = {
-        "’": "'",
-        "‘": "'",
-        "“": '"',
-        "”": '"',
-        "–": "-",     # en dash
-        "—": "-",     # em dash
-        "…": "...",   # ellipsis
-        "•": "-",     # bullet
-        " ": " ",     # narrow no-break space
-        "\u00A0": " ",  # non-breaking space
+        "’": "'", "‘": "'", "“": '"', "”": '"', "–": "-", "—": "-", "…": "...", "•": "-", " ": " ", "\u00A0": " "
     }
-
-    # Replace known characters
     for bad, good in replacements.items():
         text = text.replace(bad, good)
-
-    # Normalize text to a consistent form
-    text = unicodedata.normalize('NFKC', text)
-
-    return text
+    return unicodedata.normalize('NFKC', text)
 
 def remove_all_unicode_except_ascii(text: str) -> str:
-    """
-    Keep standard ASCII letters, digits, and all common special characters.
-    Removes emojis and other unwanted unicode characters.
-    """
     allowed_chars = (
         "abcdefghijklmnopqrstuvwxyz"
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -275,64 +239,30 @@ def remove_all_unicode_except_ascii(text: str) -> str:
     return "".join(c for c in text if c in allowed_chars)
 
 def text_to_axolotl_json(raw_text: str) -> str:
-    """
-    Convert raw JSONL conversation text into Axolotl format.
-    Returns a JSONL string where each line is a separate sample with a `messages` list.
-    """
     conversation_jsonl = []
-
     for line in raw_text.strip().splitlines():
         if not line.strip():
             continue
         try:
             obj = json.loads(line)
-            text = obj.get("text", "").strip()
-            text = clean_unicode(text)
-            text = remove_all_unicode_except_ascii(text)
-
-            # Split into turns by 'User:' or 'Assistant:'
+            text = remove_all_unicode_except_ascii(clean_unicode(obj.get("text", "").strip()))
             pattern = r"(User|Assistant):\s*(.*?)(?=(User|Assistant):|$)"
             matches = re.findall(pattern, text, flags=re.DOTALL)
-
             messages = []
             for match in matches:
-                role_label = match[0].lower()
+                role = "user" if match[0].lower() == "user" else "assistant"
                 content = match[1].strip()
-                role = "user" if role_label == "user" else "assistant"
                 if content:
                     messages.append({"role": role, "content": content})
-
             if messages:
-                # Each conversation block becomes one JSONL line
                 conversation_jsonl.append(json.dumps({"messages": messages}, ensure_ascii=False))
-
-        except json.JSONDecodeError:
-            print(f"⚠️ Could not decode line: {line[:80]}...")
-
-    # Join all conversation blocks with newline to produce valid JSONL
+        except Exception:
+            continue
     return "\n".join(conversation_jsonl)
 
 def save_dataset_analysis(lora_id: str, analysis: dict):
     try:
-        supabase.table("loras").update({
-            "dataset_analysis": analysis
-        }).eq("id", lora_id).execute()
+        supabase.table("loras").update({"dataset_analysis": analysis}).eq("id", lora_id).execute()
         print(f"✅ Saved dataset analysis for lora {lora_id}")
     except Exception as e:
         print(f"⚠️ Failed to save dataset analysis: {e}")
-
-def get_dataset_analysis(loraid: str) -> tuple:
-    # fetch dataset_analysis from Supabase
-    resp = supabase.table("loras").select("dataset_analysis").eq("id", loraid).single().execute()
-    dataset_analysis = resp.data.get("dataset_analysis") if resp.data else None
-
-    max_new_tokens = 100  # default fallback
-    end_prompt = None
-    participants = {}
-
-    if dataset_analysis:
-        max_new_tokens = dataset_analysis.get("max_new_tokens", max_new_tokens)
-        end_prompt = dataset_analysis.get("end_prompt")
-        participants = dataset_analysis.get("participants", [])
-    
-    return max_new_tokens, end_prompt, participants

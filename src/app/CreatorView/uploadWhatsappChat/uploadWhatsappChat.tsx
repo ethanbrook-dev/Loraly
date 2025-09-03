@@ -105,115 +105,67 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
       return;
     }
 
-    const MAX_GAP_HOURS = 1; // split if gap > 1 hour
-
     // sort messages by timestamp
     const sortedMessages = [...allMessages].sort(
       (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
     );
 
     const conversationBlocks: string[] = [];
-    let currentBlock: string[] = [];
-    let lastTimestamp: Date | null = null;
-
-    let lastAddedLine: string | null = null;
 
     for (const msg of sortedMessages) {
       const speaker = msg.name === selectedParticipant ? 'Assistant' : 'User';
       const messageText = msg.message.trim();
 
-      // Check if we should start a new block (based on time gap)
-      let startNewBlock = false;
-      if (lastTimestamp) {
-        const diffHours = (msg.timestamp.getTime() - lastTimestamp.getTime()) / 1000 / 3600;
-        if (diffHours > MAX_GAP_HOURS) startNewBlock = true;
-      }
+      if (!messageText) continue;
 
-      if (startNewBlock) {
-        if (currentBlock.length > 0) {
-          conversationBlocks.push(currentBlock.join('\n'));
-        }
-        currentBlock = [];
-      }
-
-      // If same speaker as last message in currentBlock, merge instead of push
-      if (currentBlock.length > 0) {
-        const lastLine = currentBlock[currentBlock.length - 1];
-        const [lastSpeaker, lastMsg] = lastLine.split(/:\s(.+)/);
-
-        if (lastSpeaker === speaker) {
-          let fixedLastMsg = lastMsg.trim();
-          // Ensure punctuation before merging
-          if (!/[.!?]$/.test(fixedLastMsg)) {
-            fixedLastMsg += '.';
-          }
-          currentBlock[currentBlock.length - 1] = `${speaker}: ${fixedLastMsg} ${messageText}`;
-          lastAddedLine = currentBlock[currentBlock.length - 1];
-          lastTimestamp = msg.timestamp;
-          continue; // skip normal push
-        }
-      }
-
-      // Normal push if not same speaker
-      const line = `${speaker}: ${messageText}`;
-      if (line !== lastAddedLine) {
-        currentBlock.push(line);
-        lastAddedLine = line;
-      }
-
-      lastTimestamp = msg.timestamp;
+      // push each message as its own line
+      conversationBlocks.push(`${speaker}: ${messageText}`);
     }
 
-    if (currentBlock.length > 0) {
-      conversationBlocks.push([...currentBlock].join('\n'));
+    // Convert each line to JSONL format for backend
+    const jsonlPayload = conversationBlocks.map(line => JSON.stringify({ text: line })).join('\n');
 
-      // Count words
-      let wordCount = 0;
-      conversationBlocks.forEach(block => {
-        const lines = block.split('\n');
-        lines.forEach(line => {
-          const msgText = line.replace(/^(User|Assistant):\s*/, '');
-          wordCount += msgText.split(/\s+/).filter(Boolean).length;
-        });
+    // Count words
+    const wordCount = conversationBlocks.reduce((count, line) => {
+      const textOnly = line.replace(/^(User|Assistant):\s*/, '');
+      return count + textOnly.split(/\s+/).filter(Boolean).length;
+    }, 0);
+
+    if (wordCount < MIN_WORDS_FOR_LORA_GEN) {
+      const proceed = window.confirm(
+        `You have ${wordCount} words.\nRecommended minimum: ${MIN_WORDS_FOR_LORA_GEN} words.\n\nDo you want to generate the voice anyway?`
+      );
+      if (!proceed) return;
+    }
+
+    // Send to backend
+    try {
+      setGenerating(true);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_BACKEND_URL}/generate-voice`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          loraId,
+          rawText: jsonlPayload,
+          participants: {
+            user: participants.find(name => name !== selectedParticipant),
+            assistant: selectedParticipant,
+          },
+        }),
       });
 
-      const fullText = conversationBlocks.map(block => JSON.stringify({ text: block })).join('\n');
-
-      if (wordCount < MIN_WORDS_FOR_LORA_GEN) {
-        const proceed = window.confirm(
-          `You have ${wordCount} words.\nRecommended minimum: ${MIN_WORDS_FOR_LORA_GEN} words.\n\nDo you want to go ahead and generate the voice anyway?`
-        );
-        if (!proceed) return;
-      }; // TODO: If augmenting ds preseves style, remove this check
-
-      try {
-        setGenerating(true);
-        const res = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_BACKEND_URL}/generate-voice`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            loraId,
-            rawText: fullText,
-            participants: {
-              user: participants.find(name => name !== selectedParticipant),
-              assistant: selectedParticipant,
-            },
-          }),
-        });
-
-        if (res.ok) {
-          router.push('../../../CreatorView/TrainingStartedPage');
-        } else {
-          setError('Voice generation failed. Please try again.');
-        }
-      } catch (err) {
-        console.error(err);
-        setError('Unexpected error during voice generation.');
-      } finally {
-        setGenerating(false);
+      if (res.ok) {
+        router.push('../../../CreatorView/TrainingStartedPage');
+      } else {
+        setError('Voice generation failed. Please try again.');
       }
-    };
-  }
+    } catch (err) {
+      console.error(err);
+      setError('Unexpected error during voice generation.');
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   return (
     <main className="upload-chat-file-page">
