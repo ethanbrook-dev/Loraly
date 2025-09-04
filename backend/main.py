@@ -21,7 +21,6 @@ from dotenv import load_dotenv
 
 # -------------------- Local imports --------------------
 from backend.dataset_analyzer import analyze_dataset, save_dataset_analysis_to_supabase, get_dataset_analysis_from_supabase
-from backend.augment_dataset_using_gpt import augment_dataset_with_gpt
 from backend.train_lora import finalize_training, train_lora
 
 # -------------------- FastAPI app --------------------
@@ -155,13 +154,9 @@ async def generate_voice(request: Request, background_tasks: BackgroundTasks):
 
     # Convert frontend JSONL into Axolotl format
     jsonl_str = text_to_axolotl_json(raw_text)
-    
-    words = int(input("Enter target word count for augmentation (e.g., 600000): "))
-    
-    augmented_jsonl_str = augment_dataset_with_gpt(jsonl_str, target_words=words)
 
     # Split train / validation
-    train_jsonl, val_jsonl = split_train_val(augmented_jsonl_str, val_frac=0.02)
+    train_jsonl, val_jsonl = split_train_val(jsonl_str, val_frac=0.02)
 
     # ---------- Write temp files ----------
     with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".jsonl", encoding="utf-8") as f_train, \
