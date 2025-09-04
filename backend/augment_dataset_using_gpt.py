@@ -4,7 +4,8 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables
-load_dotenv(dotenv_path=".env.local")
+env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env.local'))
+load_dotenv(dotenv_path=env_path)
 
 # Parse list
 OPENAI_API_KEYS = [k.strip() for k in os.getenv("OPENAI_API_KEYS", "").split(",") if k.strip()]

@@ -39,7 +39,9 @@ app.add_middleware(
 )
 
 # -------------------- Environment variables --------------------
-load_dotenv(dotenv_path=".env.local")
+env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env.local'))
+load_dotenv(dotenv_path=env_path)
+
 HF_TOKEN = os.getenv("HF_TOKEN")
 HF_USERNAME = os.getenv("HF_USERNAME")
 
