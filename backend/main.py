@@ -1,7 +1,6 @@
 # main.py - backend entrypoint
 
 # -------------------- Standard library imports --------------------
-import time # TODO: Delete after testing
 import asyncio
 import json
 import os
@@ -18,16 +17,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import modal
 from supabase import create_client
+from dotenv import load_dotenv
 
 # -------------------- Local imports --------------------
-from backend.dataset_analyzer import analyze_dataset
+from backend.dataset_analyzer import analyze_dataset, save_dataset_analysis_to_supabase, get_dataset_analysis_from_supabase
+from backend.augment_dataset_using_gpt import augment_dataset_with_gpt
 from backend.train_lora import finalize_training, train_lora
-
-# -------------------- Supabase client --------------------
-supabase = create_client(
-    os.getenv("NEXT_PUBLIC_SUPABASE_URL"),
-    os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-)
 
 # -------------------- FastAPI app --------------------
 app = FastAPI()
@@ -44,6 +39,7 @@ app.add_middleware(
 )
 
 # -------------------- Environment variables --------------------
+load_dotenv(dotenv_path=".env.local")
 HF_TOKEN = os.getenv("HF_TOKEN")
 HF_USERNAME = os.getenv("HF_USERNAME")
 
@@ -51,6 +47,12 @@ if not HF_TOKEN:
     raise RuntimeError("❌ HF_TOKEN not found in environment. Please set it in .env.local")
 if not HF_USERNAME:
     raise RuntimeError("❌ HF_USERNAME not found in environment. Please set it in .env.local")
+
+# -------------------- Supabase client --------------------
+supabase = create_client(
+    os.getenv("NEXT_PUBLIC_SUPABASE_URL"),
+    os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+)
 
 # -------------------- Root endpoint --------------------
 @app.get("/")
@@ -94,28 +96,19 @@ async def finalize_training_endpoint(request: Request):
 Phi2ChatCls = modal.Cls.from_name("phi2-lora-chat", "Phi2Chat")
 chat_worker = None
 
-Phi3CleanupCls = modal.Cls.from_name("phi3-cleanup-text", "Phi3CleanupWorker")
-cleanup_worker = None
-
-# TODO: phi3-cleanup-text modal worker was delted ... recreate it or remove references
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global chat_worker, cleanup_worker
-    print("🔌 Spinning up PERSISTENT Modal workers...")
+    global chat_worker
+    print("🔌 Spinning up PERSISTENT Modal chat worker...")
     
-    # Chat worker (Phi2)
+    # Chat worker
     chat_worker = Phi2ChatCls(hf_token=HF_TOKEN)
     print(f"✔️ Persistent chat worker spawned: {chat_worker}")
-
-    # Cleanup worker (Phi3)
-    cleanup_worker = Phi3CleanupCls()
-    print(f"✔️ Persistent Phi3 cleanup worker spawned: {cleanup_worker}")
     
     yield
-    print("👋 Terminating persistent workers...")
+    print("👋 Terminating persistent worker...")
     chat_worker.shutdown.remote()
-    cleanup_worker.shutdown.remote()
-    print("✔️ Modal workers terminated.")
+    print("✔️ Modal worker terminated.")
 
 app.router.lifespan_context = lifespan
 
@@ -132,7 +125,7 @@ async def chat(request: Request) -> JSONResponse:
 
     try:
         print("🚀 Sending prompt to Modal...")
-        max_new_tokens, end_prompt, participants = analyze_dataset(loraid)
+        max_new_tokens, end_prompt, participants = get_dataset_analysis_from_supabase(supabase, loraid)
         response = chat_worker.chat_with_lora.remote(
             lora_repo=f"{HF_USERNAME}/{loraid}-model",
             chat_history=json.dumps(chatHistory),
@@ -160,15 +153,13 @@ async def generate_voice(request: Request, background_tasks: BackgroundTasks):
 
     # Convert frontend JSONL into Axolotl format
     jsonl_str = text_to_axolotl_json(raw_text)
+    
+    words = int(input("Enter target word count for augmentation (e.g., 600000): "))
+    
+    augmented_jsonl_str = augment_dataset_with_gpt(jsonl_str, target_words=words)
 
     # Split train / validation
-    train_jsonl, val_jsonl = split_train_val(jsonl_str, val_frac=0.02)
-
-    # TODO: Augment dataset if too small somehow - maybe train little LoRA, chat with it, and then use that to make 100k words?
-    
-    proceed = input("Proceed with training? (y/n): ").lower() == 'y'
-    if not proceed:
-        return {"status": "aborted", "message": "Training aborted by user"}
+    train_jsonl, val_jsonl = split_train_val(augmented_jsonl_str, val_frac=0.02)
 
     # ---------- Write temp files ----------
     with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".jsonl", encoding="utf-8") as f_train, \
@@ -183,7 +174,7 @@ async def generate_voice(request: Request, background_tasks: BackgroundTasks):
     # ---------- Analyze dataset ----------
     try:
         analysis = analyze_dataset(f_train_path, participants)
-        save_dataset_analysis(lora_id, analysis)
+        save_dataset_analysis_to_supabase(supabase, lora_id, analysis)
     except Exception as e:
         print(f"⚠️ Failed to analyze dataset: {e}")
         analysis = None
@@ -260,10 +251,3 @@ def text_to_axolotl_json(raw_text: str) -> str:
         except Exception:
             continue
     return "\n".join(conversation_jsonl)
-
-def save_dataset_analysis(lora_id: str, analysis: dict):
-    try:
-        supabase.table("loras").update({"dataset_analysis": analysis}).eq("id", lora_id).execute()
-        print(f"✅ Saved dataset analysis for lora {lora_id}")
-    except Exception as e:
-        print(f"⚠️ Failed to save dataset analysis: {e}")

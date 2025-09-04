@@ -286,8 +286,6 @@ def generate_config(template_path: str, hf_base_model_id: str,  dataset_repo_id:
 
     return content
 
-import time
-
 def check_lora_model_uploaded(lora_id: str) -> bool:
     model_repo_id = f"{os.getenv('HF_USERNAME')}/{lora_id}-model"  # DO NOT CHANGE THIS -> the docker image will create this repo
     print(f"🔍 Checking if LoRA model {model_repo_id} exists on HuggingFace...")

@@ -4,6 +4,7 @@ import json
 import re
 import numpy as np
 from typing import List
+from supabase import Client
 
 def analyze_dataset(jsonl_path: str, participants: List[str]):
     """
@@ -83,3 +84,25 @@ def analyze_dataset(jsonl_path: str, participants: List[str]):
         },
         "participants": participants or []
     }
+
+def save_dataset_analysis_to_supabase(supabase: Client, lora_id: str, analysis: dict):
+    try:
+        supabase.table("loras").update({"dataset_analysis": analysis}).eq("id", lora_id).execute()
+        print(f"✅ Saved dataset analysis for lora {lora_id}")
+    except Exception as e:
+        print(f"⚠️ Failed to save dataset analysis: {e}")
+
+def get_dataset_analysis_from_supabase(supabase: Client, lora_id: str) -> tuple[int, str, list[str]]:
+    try:
+        resp = supabase.table("loras").select("dataset_analysis").eq("id", lora_id).single().execute()
+        analysis = resp.data.get("dataset_analysis") if resp.data else None
+        if not analysis:
+            raise ValueError("No dataset analysis found")
+        max_new_tokens = analysis.get("max_new_tokens", 150)
+        end_prompt = analysis.get("end_prompt", "\nUser:")
+        participants = analysis.get("participants", ["User", "Assistant"])
+        return max_new_tokens, end_prompt, participants
+    except Exception as e:
+        print(f"⚠️ Failed to retrieve dataset analysis: {e}")
+        # Return defaults
+        return 150, "\nUser:", ["User", "Assistant"]
