@@ -1,11 +1,6 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-import Image from 'next/image'
-
 export default function EmailVerified() {
-  const router = useRouter()
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50">
       <div className="bg-white rounded-2xl shadow-lg p-12 max-w-md text-center">

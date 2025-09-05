@@ -45,7 +45,7 @@ export default function ChatInterfacePage({ loraid, loraName }: ChatInterfacePag
             } else {
                 setChatHistory(prev => [...prev, { sender: loraName, message: '[Error getting response]' }]);
             }
-        } catch (error) {
+        } catch {
             setChatHistory(prev => [...prev, { sender: loraName, message: '[Connection error]' }]);
         }
 

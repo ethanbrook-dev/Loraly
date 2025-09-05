@@ -68,7 +68,7 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
         const match = line.match(messageRegex);
         if (!match) continue;
 
-        const [_, datePart, timePart, rawName, rawMessage] = match;
+        const [, datePart, timePart, rawName, rawMessage] = match;
         const name = rawName.trim().replace(/\u200E/g, '');
         const message = rawMessage.trim().replace(/\u200E/g, '');
 
