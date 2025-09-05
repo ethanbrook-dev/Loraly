@@ -7,6 +7,9 @@ accelerate
 peft
 sentencepiece
 numpy
+scikit-learn
 python-dotenv
 supabase
 requests
+huggingface_hub
+cryptography
