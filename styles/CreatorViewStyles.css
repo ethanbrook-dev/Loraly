@@ -10,7 +10,7 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: #f9fafb;
+  background-color: #f8f9fa;
   position: relative;
   padding: 1rem;
 }
@@ -18,12 +18,27 @@
 /* Voice Section */
 .creator-voice-section {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
   text-align: center;
-  min-height: 50vh; /* changed from fixed height for better scaling */
-  background-color: #fff;
-  padding: 1rem;
+  padding: 2rem 1rem;
+  background-color: #ffffff;
+  border-radius: 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  margin: 1rem 0;
+}
+
+.section-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #212529;
+  margin-bottom: 1.5rem;
+}
+
+.empty-state {
+  color: #6b7280;
+  font-style: italic;
+  margin: 2rem 0;
 }
 
 /* Scroll container for LoRAs */
@@ -46,33 +61,13 @@
   padding: 1rem;
   background: white;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-  flex-wrap: wrap; /* Allow wrapping on small widths */
+  flex-wrap: nowrap; /* prevent text squishing under buttons */
+  gap: 1.5rem; /* add breathing room between info and buttons */
 }
 
-/* Delete Button */
-.delete-button {
-  position: relative;
-  top: 8px;
-  right: 8px;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.delete-button img {
-  width: 20px;
-  height: 20px;
-  pointer-events: none;
-  filter: brightness(0) saturate(100%) invert(30%) sepia(100%) saturate(500%) hue-rotate(350deg);
-  transition: filter 0.2s;
-}
-
-.delete-button:hover img {
-  filter: brightness(0) saturate(100%) invert(15%) sepia(100%) saturate(600%) hue-rotate(350deg);
+.lora-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 /* LORA Info container */
@@ -80,687 +75,116 @@
   display: flex;
   align-items: center;
   gap: 1rem;
-  flex: 1 1 auto; /* flex grow for scaling */
-  min-width: 0; /* prevent overflow on small screens */
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 /* LORA name */
 .lora-name {
-  font-size: 1.2rem;
-  font-weight: 500;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #212529;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* Inner card layout */
-.lora-inner-card {
+/* LORA buttons container */
+.lora-buttons {
   display: flex;
   flex-direction: column;
+  align-items: flex-end; /* align neatly to the right */
+  gap: 0.5rem;
+  min-width: 200px; /* give them some room */
+}
+
+/* Match button shapes */
+.upload-chat-file-button,
+.share-button,
+.delete-button {
+  border-radius: 9999px; /* pill/circular style */
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.upload-chat-file-button:hover,
+.share-button:hover,
+.delete-button:hover {
+  transform: translateY(-1px);
+}
+
+/* Delete button (make it consistent with others) */
+.delete-button {
+  background: #f8d7da;
+  border: 1px solid #f5c2c7;
+  color: #842029;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  text-align: center;
-  gap: 0.5rem;
+}
+
+.delete-button img {
+  width: 18px;
+  height: 18px;
+}
+
+.delete-button:hover img {
+  filter: brightness(0) saturate(100%) invert(15%) sepia(100%) saturate(600%) hue-rotate(350deg);
+}
+
+.delete-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Footer */
 .creator-footer {
   display: flex;
   justify-content: center;
-  padding: 1rem;
+  padding: 1.5rem;
   background-color: white;
   box-shadow: 0 -1px 4px rgba(0, 0, 0, 0.05);
+  margin-top: auto;
 }
 
 /* Create voice button */
 .create-voice-button {
-  background-color: #10b981;
+  background-color: #4361ee;
   color: white;
-  padding: 0.75rem 2rem;
-  border-radius: 10px;
+  padding: 1rem 2rem;
+  border-radius: 12px;
   font-size: 1.1rem;
-  font-weight: 700;
+  font-weight: 600;
   border: none;
-  transition: background-color 0.2s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   cursor: pointer;
-  width: 90%;
+  width: 100%;
   max-width: 400px;
 }
 
 .create-voice-button:hover {
-  background-color: #059669;
+  background-color: #3a56d4;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
 }
 
-/* Page container - merged, cleaned */
-.pageContainer {
-  max-width: 900px;
-  margin: 2rem auto;
-  padding: 2rem 1.5rem; /* slightly more vertical padding */
-  background: #fff;
-  border-radius: 0.5rem;
-  box-shadow: 0 4px 14px rgb(0 0 0 / 0.1);
-  font-family: 'Inter', sans-serif;
-  color: #222;
-  box-sizing: border-box;
-}
-
-/* Page title - merged */
-.pageTitle {
-  font-weight: 800;
-  font-size: 2.25rem;
-  margin-bottom: 1.5rem;
-  text-align: center;
-  color: #222;
-}
-
-/* Loading and error text */
-.loadingText {
-  text-align: center;
-  color: #555;
-}
-
-.errorText {
-  text-align: center;
-  color: #cc0000;
-  font-weight: 600;
-}
-
-/* Mic recording section */
-.recordMicSection {
-  margin-bottom: 2rem;
-}
-
-/* Uploaded recordings section */
-.uploadedRecordingsSection {
-  border-top: 1px solid #ddd;
-  padding-top: 1rem;
-}
-
-.uploadedRecordingsTitle {
-  font-size: 1.5rem;
-  font-weight: 600;
-  margin-bottom: 1rem;
-  border-bottom: 1px solid #ddd;
-  padding-bottom: 0.3rem;
-  color: #111;
-}
-
-/* Container for audio files */
-.audioFilesContainer {
-  max-height: 24rem;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  padding-right: 0.25rem;
-}
-
-/* Each audio file row */
-.audioFileRow {
-  display: grid;
-  grid-template-columns: 40px 1fr 70px 20px 40px;
-  align-items: center;
-  background: #f9fafb;
-  border-radius: 0.4rem;
-  padding: 0.6rem 1rem;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.05);
-  transition: background-color 0.3s ease;
-}
-
-.audioFileRow:hover {
-  background-color: #e6f2ff;
-}
-
-/* Play/stop button */
-.playStopButton {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.playStopIcon {
-  width: 24px;
-  height: 24px;
-  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.1));
-}
-
-/* Audio name */
-.audioName {
-  font-weight: 600;
-  color: #222;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  padding-left: 0.75rem;
-}
-
-/* Audio duration */
-.audioDuration {
-  font-size: 0.875rem;
-  color: #666;
-  text-align: center;
-  user-select: none;
-}
-
-/* Playing animation */
-.playingAnimation {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #ccc;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  position: relative;
-}
-
-.playingAnimation.active {
-  opacity: 1;
-  background: #38a169;
-  box-shadow: 0 0 5px #38a169, 0 0 10px #38a169;
-  animation: pulse 1.2s infinite ease-in-out;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.3);
-    opacity: 0.7;
-  }
-}
-
-/* Delete button for audio files */
-.deleteButton {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.deleteIcon {
-  width: 20px;
-  height: 20px;
-  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.1));
-  transition: filter 0.3s ease;
-}
-
-.deleteButton:hover .deleteIcon {
-  filter: drop-shadow(0 0 4px #e53e3e);
-}
-
-/* Hide audio element */
-.hiddenAudio {
-  display: none;
-}
-
-/* Text shown when no recordings */
-.noRecordingsText {
-  font-style: italic;
-  color: #999;
-  text-align: center;
-  margin-top: 1rem;
-}
-
-/* Create Voice container */
-.create-voice-container {
-  max-width: 32rem;
-  margin: 0 auto;
-  padding: 2.5rem 1rem;
-}
-
-/* Create Voice title */
-.create-voice-title {
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin-bottom: 1rem;
-  text-align: center;
-}
-
-/* Create Voice preview */
-.create-voice-preview {
-  text-align: center;
-}
-
-/* Profile image */
-.voice-profile-image {
-  margin: 0 auto;
-  width: 8rem;
-  height: 8rem;
-  border-radius: 9999px;
-  object-fit: cover;
-}
-
-/* Confirmation modal */
-.confirmation-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-box {
-  background: #fff;
-  padding: 2rem;
-  border-radius: 1rem;
-  width: 90%;
-  max-width: 500px;
-  text-align: center;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
-}
-
-.modal-question {
-  font-size: 1.2rem;
-  font-weight: 600;
-}
-
-.modal-transcript {
-  font-style: italic;
-  margin: 1rem 0;
-  color: #333;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: space-around;
-  gap: 1rem;
-}
-
-.modal-btn {
-  padding: 0.5rem 1.5rem;
-  font-weight: 600;
-  font-size: 1rem;
-  border-radius: 0.5rem;
-  cursor: pointer;
-  transition: all 0.2s ease-in-out;
-}
-
-.modal-btn.yes {
-  background-color: #4caf50;
-  color: white;
-}
-
-.modal-btn.no {
-  background-color: #f44336;
-  color: white;
-}
-
-/* Voice name input container */
-.voice-name-input-container {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  padding: 1rem;
-  background-color: #f8f8f8;
-  border-radius: 1rem;
-  max-width: 500px;
-  margin: 0 auto;
-}
-
-/* Voice name input */
-.voice-name-input {
-  padding: 0.75rem;
-  font-size: 1rem;
-  border: 1px solid #ccc;
-  border-radius: 0.5rem;
-  outline: none;
-  width: 100%;
-}
-
-/* Save & record more buttons */
-.voice-save-button {
-  padding: 0.75rem;
-  font-size: 1rem;
-  font-weight: 600;
-  border: none;
-  border-radius: 0.5rem;
-  cursor: pointer;
-  width: 100%;
-  max-width: 400px;
-  margin: 0.5rem auto 0 auto;
-  display: block;
-  text-align: center;
-}
-
-/* Save button */
-.voice-save-button {
-  background-color: #0070f3;
-  color: white;
-}
-
-/* Back button */
-.back-btn {
-  background: none;
-  border: none;
-  color: #2563eb;
-  font-size: 1rem;
-  cursor: pointer;
-  margin-bottom: 2rem;
-  display: inline-block;
-}
-
-.back-btn:hover {
-  text-decoration: underline;
-}
-
-.recordMicSection {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 3rem;
-}
-
-.mic-button {
-  width: clamp(6rem, 15vw, 8rem);
-  height: clamp(6rem, 15vw, 8rem);
-  border-radius: 50%;
-  background-color: crimson;
-  border: none;
-  outline: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: box-shadow 0.3s ease;
-}
-
-.mic-button:hover {
-  box-shadow: 0 0 1.5rem rgba(220, 20, 60, 0.5);
-}
-
-.mic-icon {
-  width: 60%;
-  height: 60%;
-  object-fit: contain;
-}
-
-.is-recording {
-  animation: pulse-ring 1.2s infinite;
-}
-
-@keyframes pulse-ring {
-  0% {
-    box-shadow: 0 0 0 0 rgba(220, 20, 60, 0.4);
-  }
-  100% {
-    box-shadow: 0 0 0 2rem rgba(220, 20, 60, 0);
-  }
-}
-
-.playback-wrapper {
-  display: flex;
-  justify-content: center;
-  margin-top: 1rem;
-}
-
-audio {
-  box-shadow: 0px 0px 1rem rgba(0, 0, 0, 0.2);
-  border-radius: 999px;
-}
-
-/* Modal Styles */
-.confirmation-modal {
-  position: fixed;
-  inset: 0;
-  background-color: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-
-.modal-box {
-  background: #fff;
-  padding: 2rem;
-  border-radius: 1rem;
-  width: 90%;
-  max-width: 500px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-  text-align: center;
-}
-
-.modal-question {
-  font-size: 1.2rem;
-  font-weight: 500;
-  margin-bottom: 0.5rem;
-}
-
-.modal-transcript {
-  font-style: italic;
-  background-color: #f9f9f9;
-  border-left: 4px solid #ccc;
-  padding: 0.75rem;
-  margin: 1rem 0;
-  border-radius: 0.5rem;
-  font-size: 1rem;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: center;
-  gap: 1rem;
-}
-
-.modal-btn {
-  padding: 0.75rem 1.5rem;
-  font-size: 1rem;
-  border: none;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: background-color 0.3s ease, transform 0.2s ease;
-}
-
-.modal-btn.yes {
-  background-color: #4ade80;
-  color: white;
-}
-
-.modal-btn.no {
-  background-color: #f87171;
-  color: white;
-}
-
-.modal-btn:hover {
-  transform: scale(1.05);
-}
-
-.modal-btn.yes:hover {
-  background-color: #22c55e;
-}
-
-.modal-btn.no:hover {
-  background-color: #ef4444;
-}
-
-/* Name Recording Form */
-.create-voice-title {
-  font-size: 1.25rem;
-  margin-bottom: 1rem;
-}
-
-.voice-name-input {
-  width: 100%;
-  padding: 0.75rem;
-  border-radius: 0.5rem;
-  border: 1px solid #ccc;
-  font-size: 1rem;
-  margin-bottom: 1rem;
-}
-
-.voice-error-message {
-  color: #dc2626;
-  font-size: 0.875rem;
-  margin-bottom: 1rem;
-}
- 
-.voice-save-button {
-  width: 100%;
-  padding: 0.75rem;
-  font-size: 1rem;
-  border-radius: 999px;
-  border: none;
-  cursor: pointer;
-  margin-bottom: 0.5rem;
-  transition: background-color 0.3s ease;
-}
-
-.voice-save-button {
-  background-color: #3b82f6;
-  color: white;
-}
-
-.voice-save-button:hover {
-  background-color: #2563eb;
-}
-
-/* Uploaded Recordings List */
-.uploadedRecordingsSection {
-  margin-top: 3rem;
-}
-
-.uploadedRecordingsTitle {
-  font-size: 1.5rem;
-  margin-bottom: 1rem;
-  text-align: center;
-}
-
-.loadingText,
-.errorText,
-.noRecordingsText {
-  text-align: center;
-  font-size: 1rem;
-  color: #6b7280;
-  margin-top: 1rem;
-}
-
-.audioFilesContainer {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.audioFileRow {
-  display: grid;
-  grid-template-columns: 1fr auto auto auto;
-  align-items: center;
-  background-color: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 0.75rem;
-  padding: 1rem;
-  gap: 1rem;
-}
-
-.audioName {
-  font-weight: 600;
-  color: #111827;
-  word-break: break-word;
-}
-
-.audioDuration {
-  font-size: 0.875rem;
-  color: #6b7280;
-}
-
-.audioTranscript {
-  font-size: 0.9rem;
-  color: #4b5563;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.deleteButton {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0.25rem;
-}
-
-.deleteIcon {
-  width: 20px;
-  height: 20px;
-  opacity: 0.7;
-  transition: opacity 0.2s ease;
-}
-
-.deleteButton:hover .deleteIcon {
-  opacity: 1;
-}
-
-.recording-guidelines {
-  font-size: 1.1rem;               /* relative to root font size, scales nicely */
-  color: #222;
-  background-color: #fffbe6;
-  border: 0.1em solid #f5c518;    /* border width scales with font size */
-  border-radius: 0.75em;           /* rounded corners scale */
-  padding: 1em 1.5em;              /* padding relative to font size */
-  margin: 1em auto;
-  max-width: 90%;                  /* max width as percentage of viewport */
-  text-align: center;
-  line-height: 1.6;
-  font-weight: 500;
-  box-shadow: 0 0.125em 0.375em rgba(0, 0, 0, 0.05); /* shadow scales */
-}
-
-/* Optional: tweak font size for smaller screens */
-@media (max-width: 480px) {
-  .recording-guidelines {
-    font-size: 1rem;
-    padding: 0.8em 1em;
-  }
-}
-
-.training-message {
-  margin: 1rem auto;
-  padding: 1rem 1.5rem;
-  max-width: 400px;
-  background-color: #f0f4ff; /* soft blue */
-  color: #2a3a8c; /* dark blue */
-  font-size: 1.1rem;
-  font-weight: 500;
-  border-radius: 8px;
-  text-align: center;
-  box-shadow: 0 4px 10px rgba(42, 58, 140, 0.15);
-  user-select: none;
-  animation: fadeIn 0.6s ease forwards;
-}
-
-/* Simple fade-in animation */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
+/* Generating voice text */
 .generating-voice-text {
-  font-size: 1rem;
+  font-size: 0.9rem;
   font-weight: 600;
-  color: #6a6aff;
-  background-color: #f0f0ff;
-  padding: 0.5em 0.75em;
+  color: #4361ee;
+  background-color: #f0f4ff;
+  padding: 0.5rem 1rem;
   border-radius: 8px;
   text-align: center;
   animation: pulseFade 1.5s ease-in-out infinite;
-  box-shadow: 0 0 0.375rem rgba(106, 106, 255, 0.2);
-  margin-top: 0.625rem;
 }
 
 @keyframes pulseFade {
-  0% {
+  0%, 100% {
     opacity: 1;
     transform: scale(1);
   }
@@ -768,23 +192,45 @@ audio {
     opacity: 0.6;
     transform: scale(1.02);
   }
-  100% {
-    opacity: 1;
-    transform: scale(1);
+}
+
+/* Spinner */
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #ccc;
+  border-top-color: #4361ee;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
-/* ------------------------------------------------- RECORDING LORAS --------------------------------------------- */
-/* Record more button */
-.record-more-button {
-  background-color: #d32f2f; /* bold red */
-  color: #fff; /* white text */
-  border-radius: 50px; /* pill shape */
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-  transition: background-color 0.2s, transform 0.1s;
-}
-
-.record-more-button:hover {
-  background-color: #b71c1c; /* darker red on hover */
-  transform: scale(1.05);
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .lora-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  
+  .lora-info {
+    justify-content: center;
+    text-align: center;
+  }
+  
+  .lora-buttons {
+    min-width: auto;
+    flex-direction: row;
+    justify-content: center;
+  }
+  
+  .delete-button {
+    align-self: center;
+  }
 }

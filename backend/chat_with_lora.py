@@ -30,9 +30,6 @@ image = (
 @app.cls(gpu="A100-80GB", image=image, timeout=900, volumes={"/cache": model_volume})
 class Phi2Chat:
 
-    # Define class parameters
-    hf_token: str = modal.parameter()
-
     @modal.enter()
     def setup(self):
         """
@@ -69,7 +66,6 @@ class Phi2Chat:
 
         print(f"{YELLOW}[INFO] Logging in to Hugging Face Hub...{RESET}")
         login(token=hf_token)
-        self.hf_token = hf_token
         print(f"{GREEN}[SUCCESS] Logged in successfully{RESET}")
 
         # Load tokenizer
@@ -113,7 +109,7 @@ class Phi2Chat:
         self._base_model_loaded = True
         print(f"{GREEN}[INFO] Base model ready for LoRA loading.{RESET}")
 
-    def get_lora_model(self, lora_repo: str):
+    def get_lora_model(self, hf_token: str, lora_repo: str):
         """
         Gets a LoRA model from the cache, loading it if necessary.
         Assumes the base model is already loaded.
@@ -127,7 +123,7 @@ class Phi2Chat:
             lora_model = PeftModel.from_pretrained(
                 self.base_model,
                 lora_repo,
-                token=self.hf_token
+                token=hf_token
             )
             print(f"{GREEN}[SUCCESS] LoRA loaded successfully!{RESET}")
         except Exception as e:
@@ -297,6 +293,7 @@ class Phi2Chat:
     @modal.method()
     def chat_with_lora(
         self,
+        hf_token: str,
         lora_repo: str,
         chat_history: str, # json string of [{sender, message}, ...]
         max_new_tokens: int,
@@ -313,9 +310,9 @@ class Phi2Chat:
             raise ValueError("Invalid chat_history JSON provided") from e
 
         # This ensures the base model is loaded (only happens on first call)
-        self._ensure_base_model_loaded(self.base_model_repo, self.hf_token)
+        self._ensure_base_model_loaded(hf_token)
         # This uses the persistent cache for LoRAs
-        lora_model = self.get_lora_model(lora_repo)
+        lora_model = self.get_lora_model(hf_token, lora_repo)
 
         if not chat_history or not isinstance(chat_history, list):
             print(f"{MAGENTA}[WARN] Empty or invalid chat_history received{RESET}")

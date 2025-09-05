@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import JSZip from 'jszip';
 import { useRouter } from 'next/navigation';
 import { MIN_WORDS_FOR_LORA_GEN } from '@/app/constants/MIN_WORDS_FOR_LORA_GEN';
-import '../../../../styles/uploadChatHistory.css';
+import '../../../../styles/UploadChatHistory.css';
 
 interface Message {
   name: string;
@@ -26,6 +26,7 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
   const [allMessages, setAllMessages] = useState<Message[]>([]);
   const [generating, setGenerating] = useState(false);
 
+  // --- File Handling ---
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
     setParticipants([]);
@@ -33,7 +34,6 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
     if (!e.target.files?.length) return;
 
     const uploadedFile = e.target.files[0];
-
     if (!uploadedFile.name.toLowerCase().endsWith('.zip')) {
       setError('Only .zip files exported from WhatsApp are supported.');
       return;
@@ -58,7 +58,8 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
       const chatText = await zip.files[chatFileName].async('text');
       const lines = chatText.split(/\r?\n/);
 
-      const messageRegex = /^\[(\d{1,2}\/\d{1,2}\/\d{2,4}), (\d{1,2}:\d{2}:\d{2})\] (.*?): (.*)$/;
+      const messageRegex =
+        /^\[(\d{1,2}\/\d{1,2}\/\d{2,4}), (\d{1,2}:\d{2}:\d{2})\] (.*?): (.*)$/;
 
       const uniqueNames = new Set<string>();
       const tempMessages: Message[] = [];
@@ -67,12 +68,17 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
         const match = line.match(messageRegex);
         if (!match) continue;
 
-        const datePart = match[1];
-        const timePart = match[2];
-        const name = match[3].trim().replace(/\u200E/g, '');
-        const message = match[4].trim().replace(/\u200E/g, '');
+        const [_, datePart, timePart, rawName, rawMessage] = match;
+        const name = rawName.trim().replace(/\u200E/g, '');
+        const message = rawMessage.trim().replace(/\u200E/g, '');
 
-        if (!message || message === 'image omitted' || message.startsWith('Messages and calls are end-to-end encrypted') || name === 'You') continue;
+        if (
+          !message ||
+          message === 'image omitted' ||
+          message.startsWith('Messages and calls are end-to-end encrypted') ||
+          name === 'You'
+        )
+          continue;
 
         const timestamp = new Date(`${datePart} ${timePart}`);
         uniqueNames.add(name);
@@ -84,13 +90,13 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
       setParticipants(tempParticipants);
 
       if (tempParticipants.length !== 2) {
-        setError('Only one-on-one chats are supported. Please upload a chat with exactly 2 participants.');
+        setError(
+          'Only one-on-one chats are supported. Please upload a chat with exactly 2 participants.'
+        );
         setAllMessages([]);
         setParticipants([]);
         return;
       }
-
-      setError(null);
     } catch (err) {
       console.error(err);
       setError('Failed to parse the WhatsApp .zip file.');
@@ -99,60 +105,69 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
     }
   };
 
+  // --- Confirm & Generate ---
   const handleConfirm = async () => {
     if (!selectedParticipant || !loraId) {
       setError('Please select whose voice should be mimicked.');
       return;
     }
 
-    // sort messages by timestamp
     const sortedMessages = [...allMessages].sort(
       (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
     );
 
     const conversationBlocks: string[] = [];
-
     for (const msg of sortedMessages) {
       const speaker = msg.name === selectedParticipant ? 'Assistant' : 'User';
-      const messageText = msg.message.trim();
-
-      if (!messageText) continue;
-
-      // push each message as its own line
-      conversationBlocks.push(`${speaker}: ${messageText}`);
+      if (!msg.message.trim()) continue;
+      conversationBlocks.push(`${speaker}: ${msg.message.trim()}`);
     }
 
-    // Convert each line to JSONL format for backend
-    const jsonlPayload = conversationBlocks.map(line => JSON.stringify({ text: line })).join('\n');
+    const jsonlPayload = conversationBlocks
+      .map(line => JSON.stringify({ text: line }))
+      .join('\n');
 
-    // Count words
     const wordCount = conversationBlocks.reduce((count, line) => {
       const textOnly = line.replace(/^(User|Assistant):\s*/, '');
       return count + textOnly.split(/\s+/).filter(Boolean).length;
     }, 0);
 
     if (wordCount < MIN_WORDS_FOR_LORA_GEN) {
-      const proceed = window.confirm(
-        `You have ${wordCount} words.\nRecommended minimum: ${MIN_WORDS_FOR_LORA_GEN} words.\n\nDo you want to generate the voice anyway?`
+      const formattedMin = `${MIN_WORDS_FOR_LORA_GEN / 1000}k`; // formats 100000 as 100k
+      setError(
+        `Cannot generate voice: only ${wordCount} words provided.\n` +
+        `Recommended minimum: ${formattedMin} words.\n\n` +
+        `⚠️ When chatting with your AI (LoRA), the output will likely be garbled because the current word count is too small for the model to learn style.\n` +
+        `You can still proceed to see the training process, output, share feature, and chat feature, but it is not recommended (as the AI won't respond well).`
       );
+
+      const proceed = window.confirm(
+        `Cannot generate voice: only ${wordCount} words provided.\n` +
+        `Recommended minimum: ${formattedMin} words.\n\n` +
+        `⚠️ When chatting with your AI (LoRA), the output will likely be garbled because the current word count is too small for the model to learn style.\n` +
+        `You can still proceed to see the training process, output, share feature, and chat feature, but it is not recommended (as the AI won't respond well).`
+      );
+
       if (!proceed) return;
     }
 
-    // Send to backend
     try {
       setGenerating(true);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_BACKEND_URL}/generate-voice`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          loraId,
-          rawText: jsonlPayload,
-          participants: {
-            user: participants.find(name => name !== selectedParticipant),
-            assistant: selectedParticipant,
-          },
-        }),
-      });
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_PYTHON_BACKEND_URL}/generate-voice`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            loraId,
+            rawText: jsonlPayload,
+            participants: {
+              user: participants.find(name => name !== selectedParticipant),
+              assistant: selectedParticipant,
+            },
+          }),
+        }
+      );
 
       if (res.ok) {
         router.push('../../../CreatorView/TrainingStartedPage');
@@ -167,34 +182,51 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
     }
   };
 
+  // --- UI ---
   return (
     <main className="upload-chat-file-page">
-      <h1 className="page-title">Upload Your WhatsApp Chat</h1>
-      <p className="subheading">(.zip only)</p>
+      {/* Header */}
+      <header className="page-header">
+        <h1 className="page-title">Upload Your WhatsApp Chat</h1>
+        <p className="subheading">Only <code>.zip</code> exports are supported</p>
+      </header>
 
+      {/* Instructions */}
       <section className="instructions-section">
-        <h2 className="section-title">Export Instructions (Phone)</h2>
+        <h2 className="section-title">How to Export (on your phone)</h2>
         <ol className="instruction-list">
-          <li>Open WhatsApp on your phone.</li>
-          <li>Open the <strong>one-to-one chat</strong> you want to export (group chats are not supported).</li>
-          <li>Tap the contact name at the top.</li>
-          <li>Tap &quot;Export Chat&quot; and select &quot;Without Media&quot;.</li>
-          <li>Save to Files, then upload the .zip here.</li>
+          <li>Open WhatsApp and go to the chat you want to export.</li>
+          <li>This must be a <strong>one-to-one chat</strong> (group chats not supported).</li>
+          <li>Tap the contact’s name at the top → choose <em>Export Chat</em>.</li>
+          <li>Select <em>Without Media</em> when asked.</li>
+          <li>Save as <code>.zip</code>, then upload it here.</li>
         </ol>
       </section>
 
+      {/* Upload */}
       <section className="upload-section">
-        <input className="file-input" type="file" accept=".zip" onChange={handleFileChange} />
+        <label htmlFor="file-upload" className="file-input-label">
+          <span className="upload-icon">📂</span> Choose WhatsApp Chat (.zip)
+        </label>
+        <input
+          id="file-upload"
+          className="file-input"
+          type="file"
+          accept=".zip"
+          onChange={handleFileChange}
+        />
         {error && <p className="error-message">{error}</p>}
         {loading && <p className="loading-message">Reading file...</p>}
       </section>
 
+      {/* Participants */}
       {participants.length > 0 && (
         <section className="participants-section">
-          <h2 className="section-title">Whose voice should the AI learn?</h2>
+          <h2 className="section-title">Choose a Voice</h2>
           <p className="participant-help-text">
-            Select the participant you want the AI to emulate.
+            Select the person whose texting style you want the AI to mimic.
           </p>
+
           <ul className="participants-list">
             {participants.map(name => (
               <li key={name} className="participant-item">
@@ -207,11 +239,12 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
                     onChange={() => setSelectedParticipant(name)}
                     className="participant-radio"
                   />
-                  Mimic {name}&apos;s texting style
+                  Mimic <strong>{name}</strong>
                 </label>
               </li>
             ))}
           </ul>
+
           <button
             className="confirm-button"
             onClick={handleConfirm}

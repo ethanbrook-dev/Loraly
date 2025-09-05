@@ -1,0 +1,247 @@
+.training-container {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    padding: 2rem;
+}
+
+.training-content {
+    max-width: 500px;
+    width: 100%;
+    background: white;
+    border-radius: 20px;
+    padding: 2.5rem;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.training-content::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #4361ee, #7209b7, #f72585);
+}
+
+.animation-header {
+    position: relative;
+    margin-bottom: 2rem;
+}
+
+.pulse-ring {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    margin: 0 auto 1.5rem;
+}
+
+.spinner {
+    width: 100%;
+    height: 100%;
+    animation: rotate 2s linear infinite;
+}
+
+.spinner-inner {
+    width: 100%;
+    height: 100%;
+}
+
+.spinner-svg {
+    width: 100%;
+    height: 100%;
+}
+
+.spinner-track {
+    fill: none;
+    stroke: #e9ecef;
+    stroke-width: 4;
+}
+
+.spinner-path {
+    fill: none;
+    stroke: #4361ee;
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-dasharray: 283;
+    stroke-dashoffset: 75;
+    animation: dash 1.5s ease-in-out infinite;
+}
+
+.ai-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 2.5rem;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.training-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #212529;
+    margin-bottom: 1.5rem;
+    background: linear-gradient(135deg, #4361ee 0%, #7209b7 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.important-notice {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);
+    color: #e53e3e;
+    padding: 0.75rem 1.5rem;
+    border-radius: 50px;
+    font-weight: 600;
+    margin-bottom: 2rem;
+    border: 1px solid #feb2b2;
+}
+
+.notice-icon {
+    color: #e53e3e;
+}
+
+.training-details {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.info-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    text-align: left;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 12px;
+    border-left: 4px solid #4361ee;
+}
+
+.info-card.highlight {
+    background: linear-gradient(135deg, #f0f4ff 0%, #e6edff 100%);
+    border-left-color: #7209b7;
+}
+
+.info-card p {
+    margin: 0;
+    color: #495057;
+    line-height: 1.5;
+}
+
+.info-icon {
+    color: #4361ee;
+}
+
+.time-icon {
+    color: #f72585;
+}
+
+.data-icon {
+    color: #7209b7;
+}
+
+.dashboard-icon {
+    color: #10b981;
+}
+
+.progress-container {
+    margin-top: 2rem;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: #e9ecef;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+}
+
+.progress-fill {
+    height: 100%;
+    width: 60%;
+    background: linear-gradient(90deg, #4361ee, #7209b7);
+    border-radius: 4px;
+    animation: progress 2s ease-in-out infinite;
+}
+
+.progress-text {
+    font-size: 0.9rem;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+@keyframes rotate {
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes dash {
+    0% {
+        stroke-dashoffset: 75;
+    }
+
+    50% {
+        stroke-dashoffset: 150;
+    }
+
+    100% {
+        stroke-dashoffset: 75;
+    }
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        transform: translate(-50%, -50%) scale(1);
+    }
+
+    50% {
+        transform: translate(-50%, -50%) scale(1.1);
+    }
+}
+
+@keyframes progress {
+
+    0%,
+    100% {
+        transform: translateX(-40%);
+    }
+
+    50% {
+        transform: translateX(100%);
+    }
+}
+
+@media (max-width: 640px) {
+    .training-container {
+        padding: 1rem;
+    }
+
+    .training-content {
+        padding: 2rem 1.5rem;
+    }
+
+    .training-title {
+        font-size: 1.75rem;
+    }
+
+    .important-notice {
+        flex-direction: column;
+        text-align: center;
+        gap: 0.25rem;
+    }
+}

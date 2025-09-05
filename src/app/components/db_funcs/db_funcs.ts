@@ -81,20 +81,24 @@ export async function getUSERProfile(
 }
 
 export async function generateUSERProfilePicSignedUrl(
-    filePath: string,
-    expiresInSeconds = 60 //default to 60 seconds
+  filePath: string | null,
+  expiresInSeconds = 60 // default to 60 seconds
 ): Promise<string | null> {
-    const { data, error } = await supabase
-        .storage
-        .from(USER_PROFILE_PIC_BUCKET_NAME)
-        .createSignedUrl(filePath, expiresInSeconds);
+  if (!filePath) {
+    // No profile pic uploaded, return null so caller can use fallback
+    return null;
+  }
 
-    if (error || !data?.signedUrl) {
-        console.error('Error creating signed URL:', error);
-        return null;
-    }
+  const { data, error } = await supabase
+    .storage
+    .from(USER_PROFILE_PIC_BUCKET_NAME)
+    .createSignedUrl(filePath, expiresInSeconds);
 
-    return data.signedUrl;
+  if (error || !data?.signedUrl) {
+    return null;
+  }
+
+  return data.signedUrl;
 }
 
 export async function uploadToUSERProfilePics(

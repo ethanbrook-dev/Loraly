@@ -1,13 +1,8 @@
-// Login and Signup:
-
 'use client'
 
-// React and Next.js imports
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-
-// Supabase client import
 import { supabase } from '../../supabase/client'
 
 export default function LoginANDSignup() {
@@ -28,20 +23,14 @@ export default function LoginANDSignup() {
     setIsLoading(true)
 
     if (isLoginView) {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) {
         setErrorMsg(error.message)
       } else {
         setSuccessMsg('Login successful! Redirecting...')
-        setTimeout(() => {
-          router.push('/RoleSelect')
-        }, 1500)
+        setTimeout(() => router.push('/RoleSelect'), 1500)
       }
     } else {
-
       const { data: emailExists } = await supabase
         .from('profiles')
         .select('email')
@@ -65,14 +54,13 @@ export default function LoginANDSignup() {
             password,
             options: {
               data: { username },
+              emailRedirectTo: `${process.env.NEXT_PUBLIC_FRONTEND_URL}/confirmEmailForSignup`
             },
           })
           if (signUpError) {
-            setErrorMsg("Missing email");
+            setErrorMsg('Something went wrong. Please try again.')
           } else {
-            setSuccessMsg(
-              'Account created successfully! Please check your email to confirm. You can close this page.'
-            )
+            setSuccessMsg('Account created! Please check your email to confirm.')
             setIsLoginView(true)
             setEmail('')
             setUsername('')
@@ -88,6 +76,7 @@ export default function LoginANDSignup() {
   return (
     <div className="loraly-container">
       <div className="loraly-wrapper">
+        {/* Logo + Title */}
         <div className="loraly-logo">
           <div className="logo-icon">
             <div style={{ width: '100%', height: '100px', position: 'relative' }}>
@@ -99,11 +88,17 @@ export default function LoginANDSignup() {
               />
             </div>
           </div>
-          <div className="loraly-subtitle">
-            {isLoginView ? 'Login to your account' : 'Create new account'}
-          </div>
+          <h1 className="loraly-title">
+            {isLoginView ? 'Welcome Back' : 'Join Loraly'}
+          </h1>
+          <p className="loraly-subtitle">
+            {isLoginView
+              ? 'Login to continue to your account'
+              : 'Create an account to get started'}
+          </p>
         </div>
 
+        {/* Card */}
         <div className="loraly-card">
           <div className="card-body">
             <form onSubmit={handleSubmit} className="loraly-form">
@@ -161,13 +156,7 @@ export default function LoginANDSignup() {
                 disabled={isLoading}
               >
                 {isLoading ? (
-                  <span
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
+                  <span className="loading-text">
                     <svg
                       className="loading-spinner"
                       xmlns="http://www.w3.org/2000/svg"
@@ -187,7 +176,10 @@ export default function LoginANDSignup() {
                       <path
                         className="opacity-75"
                         fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 
+                        0 5.373 0 12h4zm2 5.291A7.962 
+                        7.962 0 014 12H0c0 3.042 1.135 
+                        5.824 3 7.938l3-2.647z"
                       />
                     </svg>
                     Processing...
@@ -195,15 +187,16 @@ export default function LoginANDSignup() {
                 ) : isLoginView ? (
                   'Login'
                 ) : (
-                  'Create My Account'
+                  'Create Account'
                 )}
               </button>
             </form>
 
+            {/* Footer toggle */}
             <div className="form-footer">
               {isLoginView ? (
                 <>
-                  Don&apos;t have an account?
+                  <span>Don&apos;t have an account?</span>
                   <button
                     onClick={() => {
                       setErrorMsg('')
@@ -220,7 +213,7 @@ export default function LoginANDSignup() {
                 </>
               ) : (
                 <>
-                  Already have an account?
+                  <span>Already registered?</span>
                   <button
                     onClick={() => {
                       setErrorMsg('')

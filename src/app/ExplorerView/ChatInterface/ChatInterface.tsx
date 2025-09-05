@@ -1,12 +1,10 @@
-// The chat interface and UI
-
 'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import '../../../../styles/ChatInterfaceStyles.css';
 
-const MAX_CHARS = 4000; // safe approximation (adjust based on model, e.g. 2048 tokens ≈ 4000 chars)
+const MAX_CHARS = 4000;
 
 type ChatInterfacePageProps = {
     loraid: string;
@@ -23,31 +21,33 @@ export default function ChatInterfacePage({ loraid, loraName }: ChatInterfacePag
     const handleSend = async () => {
         if (!input.trim()) return;
 
-        // Create updated history with the new user message
         const updatedHistory = trimHistory([...chatHistory, { sender: 'You', message: input }]);
         setChatHistory(updatedHistory);
         
         setIsLoading(true);
 
-        const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_BACKEND_URL}/chat`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                loraid,
-                chatHistory: updatedHistory,
-            }),
-        });
+        try {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_BACKEND_URL}/chat`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    loraid,
+                    chatHistory: updatedHistory,
+                }),
+            });
 
-        const data = await response.json();
+            const data = await response.json();
 
-        if (response.ok && data?.response) {
-            setChatHistory(prev => [...prev, { sender: loraName, message: data.response }]);
-        } else {
-            setChatHistory(prev => [...prev, { sender: loraName, message: '[Error getting response]' }]);
+            if (response.ok && data?.response) {
+                setChatHistory(prev => [...prev, { sender: loraName, message: data.response }]);
+            } else {
+                setChatHistory(prev => [...prev, { sender: loraName, message: '[Error getting response]' }]);
+            }
+        } catch (error) {
+            setChatHistory(prev => [...prev, { sender: loraName, message: '[Connection error]' }]);
         }
-
 
         setInput('');
         setIsLoading(false);
@@ -57,12 +57,11 @@ export default function ChatInterfacePage({ loraid, loraName }: ChatInterfacePag
         let totalChars = 0;
         const trimmed: { sender: string; message: string }[] = [];
 
-        // iterate backwards (most recent first)
         for (let i = history.length - 1; i >= 0; i--) {
             const msg = history[i];
             totalChars += msg.message.length;
             if (totalChars > MAX_CHARS) break;
-            trimmed.unshift(msg); // prepend so order stays intact
+            trimmed.unshift(msg);
         }
 
         return trimmed;
@@ -83,9 +82,20 @@ export default function ChatInterfacePage({ loraid, loraName }: ChatInterfacePag
             <div className="chat-messages">
                 {chatHistory.map((msg, i) => (
                     <div key={i} className={`chat-message ${msg.sender === 'You' ? 'user' : 'bot'}`}>
-                        <strong>{msg.sender}:</strong> {msg.message}
+                        <strong>{msg.sender}:</strong>
+                        <div className="message-content">{msg.message}</div>
                     </div>
                 ))}
+                {isLoading && (
+                    <div className="chat-message bot">
+                        <strong>{loraName}:</strong>
+                        <div className="typing-indicator">
+                            <div className="typing-dot"></div>
+                            <div className="typing-dot"></div>
+                            <div className="typing-dot"></div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             <div className="chat-input-container">
@@ -95,8 +105,9 @@ export default function ChatInterfacePage({ loraid, loraName }: ChatInterfacePag
                     placeholder="Type your message..."
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                    disabled={isLoading}
                 />
-                <button onClick={handleSend} disabled={isLoading}>
+                <button onClick={handleSend} disabled={isLoading || !input.trim()}>
                     {isLoading ? '...' : 'Send'}
                 </button>
             </div>

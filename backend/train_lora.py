@@ -36,17 +36,22 @@ env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env.l
 load_dotenv(dotenv_path=env_path)
 supabase = create_client(os.getenv('NEXT_PUBLIC_SUPABASE_URL'), os.getenv('SUPABASE_SERVICE_ROLE_KEY'))
 
-# ----------- GLOBAL HfApi INSTANCE -----------
-HF_TOKEN = os.getenv("HF_TOKEN")
-if not HF_TOKEN:
-    raise RuntimeError("❌ HF_TOKEN not found in environment")
+HF_API = None
+HF_TOKEN = None
+HF_USERNAME = None
+RUNPOD_API_KEY = None
 
-api = HfApi(token=HF_TOKEN)
-
-def train_lora(lora_id: str, train_file_path: str, val_file_path: str, yaml_config_path: str):
+def train_lora(env_vars: dict, lora_id: str, train_file_path: str, val_file_path: str, yaml_config_path: str):
     """
     Launch LoRA training pipeline using RunPod with optional validation dataset.
     """
+    
+    # Setting gloal env vars
+    global HF_API, HF_TOKEN, HF_USERNAME, RUNPOD_API_KEY
+    HF_TOKEN = env_vars["hf_token"]
+    HF_API = HfApi(token=HF_TOKEN)
+    HF_USERNAME = env_vars["hf_username"]
+    RUNPOD_API_KEY = env_vars["runpod_api_key"]
     
     if BASE_MODEL_MAP.get(yaml_config_path) is None:
         print(f"❌ No base model mapping found for config {yaml_config_path}")
@@ -83,7 +88,7 @@ def train_lora(lora_id: str, train_file_path: str, val_file_path: str, yaml_conf
         cleanup(train_file_path)
         cleanup(val_file_path)
 
-def finalize_training(lora_id: str, pod_id: str, cuda_not_available: bool = False):
+def finalize_training(runpod_api_key: str, lora_id: str, pod_id: str, cuda_not_available: bool = False):
     """ Finalize the training process based on the status received from the pod """
 
     if cuda_not_available:
@@ -104,12 +109,12 @@ def finalize_training(lora_id: str, pod_id: str, cuda_not_available: bool = Fals
     delete_hf_dataset(lora_id)
 
     if pod_id:
-        delete_pod(pod_id)
+        delete_pod(runpod_api_key, pod_id)
 
 def upload_dataset_to_hf(dataset_file_path: str, dataset_repo_id: str):
     try:
-        api.create_repo(repo_id=dataset_repo_id, repo_type="dataset", exist_ok=True)
-        api.upload_file(
+        HF_API.create_repo(repo_id=dataset_repo_id, repo_type="dataset", exist_ok=True)
+        HF_API.upload_file(
             path_or_fileobj=dataset_file_path,
             path_in_repo="data.jsonl",
             repo_id=dataset_repo_id,
@@ -123,13 +128,13 @@ def upload_dataset_to_hf(dataset_file_path: str, dataset_repo_id: str):
 def delete_hf_dataset(lora_id: str):
     dataset_repo_id = get_hf_dataset_repo_id(lora_id)
     try:
-        api.delete_repo(repo_id=dataset_repo_id, repo_type="dataset")
+        HF_API.delete_repo(repo_id=dataset_repo_id, repo_type="dataset")
         print(f"🗑️ Deleted Hugging Face dataset: {dataset_repo_id}")
     except Exception as e:
         print(f"⚠️ Failed to delete HF dataset {dataset_repo_id}: {e}")
 
 def get_hf_dataset_repo_id(lora_id: str) -> str:
-    return f"{os.getenv('HF_USERNAME')}/{lora_id}-dataset"
+    return f"{HF_USERNAME}/{lora_id}-dataset"
 
 def cleanup(temp_path: str):
     print("🧹 Cleaning up...")
@@ -164,7 +169,7 @@ def start_training_pipeline(lora_id: str, dataset_repo_id: str, val_repo_id: str
     return pod_id
 
 def create_pod(lora_id: str, model_output_path: str, config_content: str, hf_base_model_id: str) -> str:
-    headers = runpod_headers()
+    headers = runpod_headers(RUNPOD_API_KEY)
     pod_name = f"{lora_id}-trainer"
 
     query = {"query": "query { gpuTypes { id displayName memoryInGb } }"}
@@ -195,8 +200,8 @@ def create_pod(lora_id: str, model_output_path: str, config_content: str, hf_bas
                 "ports": "8888/http",
                 "volumeMountPath": "/data",
                 "env": [
-                    {"key": "HF_TOKEN", "value": os.getenv("HF_TOKEN")},
-                    {"key": "HF_USERNAME", "value": os.getenv("HF_USERNAME")},
+                    {"key": "HF_TOKEN", "value": HF_TOKEN},
+                    {"key": "HF_USERNAME", "value": HF_USERNAME},
                     {"key": "BASE_MODEL", "value": hf_base_model_id},
                     {"key": "LORA_ID", "value": lora_id},
                     {"key": "CONFIG_CONTENT", "value": config_content},
@@ -226,7 +231,7 @@ def create_pod(lora_id: str, model_output_path: str, config_content: str, hf_bas
     return None
 
 def wait_for_pod_ready(lora_id: str, interval=100, retries=30) -> bool:
-    headers = runpod_headers()
+    headers = runpod_headers(RUNPOD_API_KEY)
     pod_name = f"{lora_id}-trainer"
 
     print("⏳ Waiting for pod to be listed...")
@@ -287,12 +292,12 @@ def generate_config(template_path: str, hf_base_model_id: str,  dataset_repo_id:
     return content
 
 def check_lora_model_uploaded(lora_id: str) -> bool:
-    model_repo_id = f"{os.getenv('HF_USERNAME')}/{lora_id}-model"  # DO NOT CHANGE THIS -> the docker image will create this repo
+    model_repo_id = f"{HF_USERNAME}/{lora_id}-model"  # DO NOT CHANGE THIS -> the docker image will create this repo
     print(f"🔍 Checking if LoRA model {model_repo_id} exists on HuggingFace...")
 
     for attempt in range(2):
         try:
-            files = api.list_repo_files(repo_id=model_repo_id, repo_type="model")
+            files = HF_API.list_repo_files(repo_id=model_repo_id, repo_type="model")
             found = any(
                 "adapter" in f or 
                 "pytorch_model" in f or 
@@ -314,10 +319,10 @@ def check_lora_model_uploaded(lora_id: str) -> bool:
     print(f"❌ LoRA model {lora_id} not found after 2 attempts.")
     return False
 
-def delete_pod(pod_id: str):
+def delete_pod(runpod_api_key: str, pod_id: str):
     url = f"https://rest.runpod.io/v1/pods/{pod_id}"
     headers = {
-        "Authorization": f"Bearer {os.getenv('RUNPOD_API_KEY')}"
+        "Authorization": f"Bearer {runpod_api_key}"
     }
 
     try:
@@ -329,9 +334,9 @@ def delete_pod(pod_id: str):
     except Exception as e:
         print(f"⚠️ Exception while deleting pod: {e}")
 
-def runpod_headers():
+def runpod_headers(runpod_api_key: str):
     return {
-        "Authorization": f"Bearer {os.getenv('RUNPOD_API_KEY')}",
+        "Authorization": f"Bearer {runpod_api_key}",
         "Content-Type": "application/json"
     }
 

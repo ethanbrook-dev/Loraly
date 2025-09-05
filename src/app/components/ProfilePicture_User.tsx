@@ -1,7 +1,8 @@
-'use client';
+'use client'
 
 // React imports
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react'
+import Image from 'next/image'
 
 // Supabase helpers
 import {
@@ -9,62 +10,75 @@ import {
   getUSERProfile,
   generateUSERProfilePicSignedUrl,
   uploadToUSERProfilePics
-} from './db_funcs/db_funcs';
+} from './db_funcs/db_funcs'
+
+const default_image_url = '/default-user-profile-pic.png'
 
 export default function ProfilePicture_user() {
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [currentProfilePath, setCurrentProfilePath] = useState<string | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [currentProfilePath, setCurrentProfilePath] = useState<string | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchProfilePic = async () => {
-      const user = await getAuthenticatedUser();
-      if (!user) return;
+      const user = await getAuthenticatedUser()
+      if (!user) return
 
-      setUserId(user.id);
+      setUserId(user.id)
 
-      const userData = await getUSERProfile(user.id);
-      const userProfilePicUrl = userData?.profile_pic_url;
-      if (!userProfilePicUrl) return;
+      const userData = await getUSERProfile(user.id)
+      const userProfilePicUrl = userData?.profile_pic_url
 
-      setCurrentProfilePath(userProfilePicUrl);
+      if (!userProfilePicUrl) {
+        // No profile pic uploaded → fall back to local default
+        setImageUrl(default_image_url)
+        return
+      }
 
-      const signedUrl = await generateUSERProfilePicSignedUrl(userProfilePicUrl, 60);
-      if (!signedUrl) return;
+      setCurrentProfilePath(userProfilePicUrl)
 
-      setImageUrl(signedUrl);
-    };
+      const signedUrl = await generateUSERProfilePicSignedUrl(userProfilePicUrl, 60)
+      if (!signedUrl) {
+        // If signed URL fails, fallback too
+        setImageUrl(default_image_url)
+        return
+      }
 
-    fetchProfilePic();
-  }, []);
+      setImageUrl(signedUrl)
+    }
+
+    fetchProfilePic()
+  }, [])
 
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    setErrorMsg(null); // Clear previous errors
-    const file = event.target.files?.[0];
-    if (!file || !userId) return;
+    setErrorMsg(null)
+    const file = event.target.files?.[0]
+    if (!file || !userId) return
 
-    // Check file size (max 1MB = 1,048,576 bytes)
     if (file.size > 1048576) {
-      setErrorMsg('File size exceeds 1MB. Please upload a smaller image.');
-      return;
+      setErrorMsg('File size exceeds 1MB. Please upload a smaller image.')
+      return
     }
 
-    const newPath = `${userId}/${Date.now()}-${file.name}`;
+    const newPath = `${userId}/${Date.now()}-${file.name}`
 
-    const success = await uploadToUSERProfilePics(userId, newPath, file, currentProfilePath || undefined);
+    const success = await uploadToUSERProfilePics(userId, newPath, file, currentProfilePath || undefined)
     if (!success) {
-      setErrorMsg('Failed to update profile picture.');
-      return;
+      setErrorMsg('Failed to update profile picture.')
+      return
     }
 
-    const signedUrl = await generateUSERProfilePicSignedUrl(newPath, 60);
-    if (!signedUrl) return;
+    const signedUrl = await generateUSERProfilePicSignedUrl(newPath, 60)
+    if (!signedUrl) {
+      setErrorMsg('Failed to generate profile picture URL.')
+      return
+    }
 
-    setImageUrl(signedUrl);
-    setCurrentProfilePath(newPath); // update path reference
-  };
+    setImageUrl(signedUrl)
+    setCurrentProfilePath(newPath)
+  }
 
   return (
     <>
@@ -73,11 +87,13 @@ export default function ProfilePicture_user() {
         onClick={() => fileInputRef.current?.click()}
         style={{ position: 'relative', cursor: 'pointer' }}
       >
-        {imageUrl ? (
-          <img src={imageUrl} alt="Profile" className="profile-pic-image" />
-        ) : (
-          '+'
-        )}
+        <Image
+          src={imageUrl || default_image_url}
+          alt="Profile"
+          fill
+          style={{ objectFit: 'cover' }}
+          className="profile-pic-image"
+        />
       </div>
 
       <input
@@ -94,5 +110,5 @@ export default function ProfilePicture_user() {
         </p>
       )}
     </>
-  );
+  )
 }
