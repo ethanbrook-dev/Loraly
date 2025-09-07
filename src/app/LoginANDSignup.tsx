@@ -54,7 +54,6 @@ export default function LoginANDSignup() {
             password,
             options: {
               data: { username },
-              emailRedirectTo: `${process.env.NEXT_PUBLIC_FRONTEND_URL}/roleselect/userenvform`
             },
           })
           if (signUpError) {
