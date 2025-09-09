@@ -134,19 +134,14 @@ export default function UploadWhatsappChat({ loraId }: UploadWhatsappChatProps) 
 
     if (wordCount < MIN_WORDS_FOR_LORA_GEN) {
       const formattedMin = `${MIN_WORDS_FOR_LORA_GEN / 1000}k`; // formats 100000 as 100k
-      setError(
-        `Cannot generate voice: only ${wordCount} words provided.\n` +
+      const proceed = window.confirm(
+        `Only ${wordCount} words provided.\n` +
         `Recommended minimum: ${formattedMin} words.\n\n` +
         `⚠️ When chatting with your AI (LoRA), the output will likely be garbled because the current word count is too small for the model to learn style.\n` +
         `You can still proceed to see the training process, output, share feature, and chat feature, but it is not recommended (as the AI won't respond well).`
       );
 
-      const proceed = window.confirm(
-        `Cannot generate voice: only ${wordCount} words provided.\n` +
-        `Recommended minimum: ${formattedMin} words.\n\n` +
-        `⚠️ When chatting with your AI (LoRA), the output will likely be garbled because the current word count is too small for the model to learn style.\n` +
-        `You can still proceed to see the training process, output, share feature, and chat feature, but it is not recommended (as the AI won't respond well).`
-      );
+      setError(null);
 
       if (!proceed) return;
     }
