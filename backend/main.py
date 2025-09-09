@@ -116,9 +116,6 @@ async def lifespan(app: FastAPI):
     chat_worker = Phi2ChatCls()
     print_from_main(f"Persistent chat worker spawned: {chat_worker}")
     yield
-    print_from_main("Terminating persistent worker...")
-    chat_worker.shutdown.remote()
-    print_from_main("Modal worker terminated.")
 
 app.router.lifespan_context = lifespan
 
